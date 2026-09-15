@@ -154,6 +154,10 @@ void main() {
             database: scope.database,
           ),
         ),
+        // No es del interés de esta prueba (huella de la base de Odoo,
+        // 14-sep-2026): un lector falso evita que `activate()` intente un
+        // RPC real contra el dominio de prueba.
+        identityReader: (client, scope) async => 'fixed-identity',
       );
       final online = await runtime.activate(scope(1), apiKey: 'test-key');
       expect(online.client, isNotNull);
@@ -183,6 +187,9 @@ void main() {
             database: scope.database,
           ),
         ),
+        // Igual que arriba: esta prueba es sobre `applyUserLocale`, no sobre
+        // la huella de la base — un lector falso evita el RPC real.
+        identityReader: (client, scope) async => 'fixed-identity',
       );
       final activation = await runtime.activate(scope(1), apiKey: 'test-key');
 

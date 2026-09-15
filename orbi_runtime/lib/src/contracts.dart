@@ -284,6 +284,37 @@ final class PauseReason {
   final String code;
 }
 
+/// La base de Odoo detrás de un [scope] se reinstaló o se reemplazó por
+/// otra con el mismo nombre de servidor/base/usuario — `SessionRuntime`
+/// (`session/session_runtime.dart`) lo detecta comparando la huella
+/// guardada contra la que responde el servidor en `activate()`, y borra los
+/// datos locales de esa base ANTES de publicar este evento. Sin UI en
+/// `orbi_runtime` (ADR-01): quien escuche esto (el armazón de Orbi) decide
+/// cómo avisarlo.
+final class OdooDatabaseReplaced {
+  OdooDatabaseReplaced({
+    required this.scope,
+    required int discardedOperations,
+    List<String> operationsSummary = const [],
+  }) : discardedOperations = _nonNegative(
+         discardedOperations,
+         'discardedOperations',
+       ),
+       operationsSummary = List.unmodifiable(operationsSummary);
+
+  final AppScope scope;
+
+  /// Filas de `offline_queue` que NO estaban `completed` y se borraron con
+  /// el resto de la base local — nunca se enviaron, y ya no se pueden
+  /// enviar contra la base nueva.
+  final int discardedOperations;
+
+  /// `modelo.método` de hasta 20 de esas operaciones, en el mismo orden en
+  /// que las leyó la cola — para que quien avise pueda mostrar "Ver
+  /// detalle" sin volver a consultar la base ya borrada.
+  final List<String> operationsSummary;
+}
+
 /// Single owner of sync lifecycle and all sync triggers for an active scope.
 abstract interface class SyncCoordinator {
   Future<void> start(AppScope scope);

@@ -139,6 +139,10 @@ void main() {
       final scope = _scope('https://online.example');
       final runtime = SessionRuntime(
         databaseOwner: RuntimeDatabaseOwner(factory: (_) => _ScopeADatabase()),
+        // No es del interés de esta prueba (huella de la base de Odoo,
+        // 14-sep-2026): un lector falso evita un RPC real contra el dominio
+        // de prueba.
+        identityReader: (client, scope) async => 'fixed-identity',
       );
       final factory = OrbiBusinessCompositionFactory(
         approvalBuilder: (_, _, _) => _Approval(),

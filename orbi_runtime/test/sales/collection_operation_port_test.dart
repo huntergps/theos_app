@@ -44,6 +44,12 @@ AppScope _scope(String server) => AppScope(
   userId: 7,
 );
 
+// Ninguna prueba de este archivo es sobre la huella de la base de Odoo
+// (14-sep-2026): un lector falso evita que `activate()` intente un RPC real
+// contra el dominio de prueba `https://erp.test`.
+Future<String> _fakeIdentity(OdooClient client, AppScope scope) async =>
+    'fixed-identity';
+
 CapabilitySnapshot _caps(AppScope scope) => CapabilitySnapshot(
   scopeKey: scope.scopeKey,
   companyId: 1,
@@ -65,6 +71,7 @@ void main() {
       databaseOwner: RuntimeDatabaseOwner(
         factory: (_) => AppDatabase(NativeDatabase.memory()),
       ),
+      identityReader: _fakeIdentity,
     );
     final activation = await runtime.activate(scope, apiKey: 'key');
     final actions = _Actions();
@@ -116,6 +123,7 @@ void main() {
         databaseOwner: RuntimeDatabaseOwner(
           factory: (_) => AppDatabase(NativeDatabase.memory()),
         ),
+        identityReader: _fakeIdentity,
       );
       final activation = await runtime.activate(scope, apiKey: 'key');
       final actions = _Actions();
@@ -166,6 +174,7 @@ void main() {
       databaseOwner: RuntimeDatabaseOwner(
         factory: (_) => AppDatabase(NativeDatabase.memory()),
       ),
+      identityReader: _fakeIdentity,
     );
     final activation = await runtime.activate(scope, apiKey: 'key');
     final actions = _Actions();
@@ -261,6 +270,7 @@ void main() {
       final db = AppDatabase(NativeDatabase.memory());
       final runtime = SessionRuntime(
         databaseOwner: RuntimeDatabaseOwner(factory: (_) => db),
+        identityReader: _fakeIdentity,
       );
       final activation = await runtime.activate(scope, apiKey: 'key');
       final actions = _Actions();

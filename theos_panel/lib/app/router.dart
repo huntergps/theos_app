@@ -1270,6 +1270,40 @@ final sessionExpiredSignalProvider = Provider<bool>((ref) {
 });
 // --- Fin del bloque aislado ------------------------------------------------
 
+// --- Bloque aislado: huella de la base de Odoo (14-sep-2026) ---------------
+// `SessionRuntime.databaseReplacements` (`orbi_runtime`) avisa DESPUÉS de
+// haber borrado los datos locales de un scope cuya base de Odoo se reinstaló
+// o se reemplazó — sin UI en `orbi_runtime` (ADR-01). Este notifier sólo le
+// da forma persistente-hasta-que-se-cierre-a-mano a ese aviso puntual: el
+// stream emite una vez y `build()` no lo volvería a ver, así que se
+// suscribe una sola vez por `runtime` y guarda el último evento en `state`
+// hasta que `dismiss()` lo limpie (el cierre del `InfoBar` en
+// `OperationalShell`).
+final _databaseReplacedNoticeProvider =
+    NotifierProvider<_DatabaseReplacedNoticeNotifier, OdooDatabaseReplaced?>(
+      _DatabaseReplacedNoticeNotifier.new,
+    );
+
+class _DatabaseReplacedNoticeNotifier extends Notifier<OdooDatabaseReplaced?> {
+  StreamSubscription<OdooDatabaseReplaced>? _subscription;
+
+  @override
+  OdooDatabaseReplaced? build() {
+    final runtime = ref.watch(runtimeSessionProvider);
+    ref.onDispose(() => unawaited(_subscription?.cancel()));
+    unawaited(_subscription?.cancel());
+    _subscription = null;
+    if (runtime == null) return null;
+    _subscription = runtime.databaseReplacements.listen((notice) {
+      if (ref.mounted) state = notice;
+    });
+    return null;
+  }
+
+  void dismiss() => state = null;
+}
+// --- Fin del bloque aislado ------------------------------------------------
+
 // --- Bloque aislado: estado del tiempo real visible (14-sep-2026, hueco 1
 // de la auditoría de tiempo real) --------------------------------------------
 // Mismo patrón que `scopeSyncSnapshotStreamProvider` justo arriba: le da
@@ -2563,6 +2597,9 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
                                   const [])
                               .isNotEmpty,
                       sriPending: ref.watch(sriPendingProvider),
+                      databaseReplacedNotice: ref.watch(
+                        _databaseReplacedNoticeProvider,
+                      ),
                     ),
                     onLogout: () async {
                       await ref.read(authControllerProvider.notifier).close();
@@ -2624,6 +2661,9 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
                     pinLength: kSellerPinLength,
                     onSwitchUser: () =>
                         confirmSwitchWorkspaceUser(context, ref),
+                    onDismissDatabaseReplacedNotice: () => ref
+                        .read(_databaseReplacedNoticeProvider.notifier)
+                        .dismiss(),
                     // `Builder` gives the denial toast a BuildContext that is
                     // actually a descendant of `OperationalShell`'s own
                     // `Scaffold` — the outer `context` from this route builder

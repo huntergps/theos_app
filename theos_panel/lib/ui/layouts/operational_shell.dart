@@ -6,6 +6,7 @@ import 'package:orbi_runtime/orbi_runtime.dart'
     show
         ClientPolicyTimeSource,
         ConnectionStatus,
+        OdooDatabaseReplaced,
         OdooPresence,
         RealtimeStatus,
         connectionStatusLabel,
@@ -55,6 +56,7 @@ final class OperationalContext {
     this.deviceName,
     this.cashSessionOpen = false,
     this.sriPending,
+    this.databaseReplacedNotice,
   });
 
   final String server;
@@ -163,6 +165,15 @@ final class OperationalContext {
   /// `account_edi` — del que depende `l10n_ec_edi`) o cuando nunca se pudo
   /// contar: nunca una cifra inventada.
   final SriPendingStatus? sriPending;
+
+  /// Huella de la base de Odoo (14-sep-2026): no nulo cuando
+  /// `SessionRuntime.databaseReplacements` (`orbi_runtime`) avisó que la
+  /// base detrás de este scope se reinstaló o se reemplazó — ya con los
+  /// datos locales borrados, `router.dart` sólo arma este aviso. `null` es
+  /// el caso normal; se limpia con
+  /// [OperationalShell.onDismissDatabaseReplacedNotice] cuando la persona lo
+  /// cierra a mano, nunca solo con el paso del tiempo.
+  final OdooDatabaseReplaced? databaseReplacedNotice;
 }
 
 /// Lo que necesita la píldora «N pendientes SRI»: la última cuenta conocida
@@ -313,6 +324,7 @@ final class OperationalShell extends StatefulWidget {
     this.presence,
     this.onPresenceChanged,
     this.onOpenPreferences,
+    this.onDismissDatabaseReplacedNotice,
   }) : assert(
          onLock == null || onUnlock != null,
          'onUnlock is required whenever onLock is provided: a shell that '
@@ -418,6 +430,12 @@ final class OperationalShell extends StatefulWidget {
   /// separación real: dos disparadores, dos caminos.
   final VoidCallback? onOpenPreferences;
 
+  /// Cierra a mano el aviso de [OperationalContext.databaseReplacedNotice].
+  /// `null` sólo cuando quien instancia este marco no tiene notificación que
+  /// mostrar — mientras haya [OperationalContext.databaseReplacedNotice],
+  /// `router.dart` siempre da con qué cerrarlo.
+  final VoidCallback? onDismissDatabaseReplacedNotice;
+
   /// 🔴 Aquí había seis colores escritos a mano: tres para el pie y tres para
   /// el estado. Ninguno se decide ya en este fichero. Orden del dueño del
   /// 12-sep-2026: *«no tocar nada del estilo de fluent_ui, sólo escoger los
@@ -433,6 +451,11 @@ final class OperationalShell extends StatefulWidget {
 }
 
 class _OperationalShellState extends State<OperationalShell> {
+  /// Sólo pinta la lista de `modelo.método` descartados cuando la persona
+  /// pulsa «Ver detalle» — colapsado por omisión para no abrumar el aviso
+  /// con una lista que puede tener hasta 20 líneas.
+  bool _showDatabaseReplacedDetail = false;
+
   @override
   Widget build(BuildContext buildContext) {
     // El bloqueo local (`locked`, una decisión del operador) manda sobre el
@@ -510,6 +533,69 @@ class _OperationalShellState extends State<OperationalShell> {
                     'la pestaña.',
                   ),
                   severity: InfoBarSeverity.warning,
+                ),
+              ),
+            // Huella de la base de Odoo (14-sep-2026): a diferencia del
+            // aviso de arriba, éste SÍ se cierra a mano
+            // (`onDismissDatabaseReplacedNotice`) — el riesgo que describe ya
+            // pasó (los datos locales de la base vieja ya se borraron), así
+            // que no hace falta que siga puesto para siempre.
+            if (widget.context.databaseReplacedNotice != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                child: Builder(
+                  builder: (context) {
+                    final notice = widget.context.databaseReplacedNotice!;
+                    final discarded = notice.discardedOperations;
+                    return InfoBar(
+                      key: const Key('shell-database-replaced-warning'),
+                      title: const Text(
+                        'La base de Odoo de este servidor cambió (se '
+                        'reinstaló o se reemplazó)',
+                      ),
+                      content: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Se borraron los datos guardados en este equipo '
+                            'para ella: $discarded operaciones pendientes '
+                            'sin enviar y los borradores.',
+                          ),
+                          if (discarded > 0)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: HyperlinkButton(
+                                onPressed: () => setState(
+                                  () => _showDatabaseReplacedDetail =
+                                      !_showDatabaseReplacedDetail,
+                                ),
+                                child: Text(
+                                  _showDatabaseReplacedDetail
+                                      ? 'Ocultar detalle'
+                                      : 'Ver detalle',
+                                ),
+                              ),
+                            ),
+                          if (_showDatabaseReplacedDetail)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  for (final entry
+                                      in notice.operationsSummary)
+                                    Text('• $entry'),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ),
+                      severity: InfoBarSeverity.warning,
+                      onClose: widget.onDismissDatabaseReplacedNotice,
+                    );
+                  },
                 ),
               ),
             Expanded(
