@@ -12,7 +12,7 @@ import 'dart:async';
 // El test deliberadamente usa el executor real de Drift en memoria.
 // ignore: depend_on_referenced_packages
 import 'package:drift/native.dart';
-import 'package:drift/drift.dart' show Variable;
+import 'package:drift/drift.dart' show Value, Variable;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 
@@ -51,6 +51,24 @@ Future<String?> _readIdentity(dynamic database) async {
       .get();
   return rows.isEmpty ? null : rows.first.read<String>('value');
 }
+
+/// Fila real de `offline_queue` con un `created_at` controlado — vía la API
+/// tipada de Drift (`OfflineQueueCompanion.insert`), NUNCA con SQL crudo:
+/// `created_at` es un `DateTimeColumn` de verdad (guardado como epoch, no
+/// texto), y `_earliestLocalWriteTimestamp` lo lee de vuelta con
+/// `readNullable<DateTime>`. Un `INSERT` a mano con un literal ISO-8601 se
+/// guardaría como TEXTO y esa lectura tipada fallaría.
+Future<void> _seedOfflineQueueRow(AppDatabase database, DateTime createdAt) =>
+    database
+        .into(database.offlineQueue)
+        .insert(
+          OfflineQueueCompanion.insert(
+            model: 'sale.order',
+            method: const Value('create'),
+            values: '{}',
+            createdAt: createdAt,
+          ),
+        );
 
 void main() {
   test(
@@ -193,6 +211,95 @@ void main() {
       await _readIdentity(activation.database.database),
       'first-identity',
     );
+    expect(events, isEmpty);
+
+    await runtime.close();
+  });
+
+  test('legacy local data older than the user is wiped', () async {
+    // El caso real (15-sep-2026, Mepriga): el equipo ya tiene datos locales
+    // de ANTES de que existiera esta huella — nunca se guardó una fila en
+    // `sync_metadata`, pero `offline_queue` sí tiene una fila de hace dos
+    // días. Si esta base se reinstaló anoche, el usuario del scope existe
+    // desde hace sólo una hora: ese dato de hace dos días NO PUDO
+    // escribirse contra el usuario actual, así que es de la base vieja.
+    final owner = RuntimeDatabaseOwner(
+      factory: (_) => AppDatabase(NativeDatabase.memory()),
+    );
+    final now = DateTime.now().toUtc();
+    final userCreatedAt = now.subtract(const Duration(hours: 1));
+    final runtime = SessionRuntime(
+      databaseOwner: owner,
+      clientFactory: _harmlessClientFactory(),
+      identityReader: (client, scope) async =>
+          userCreatedAt.toIso8601String(),
+    );
+    final scope = _scope(1);
+
+    final opened = await owner.open(scope);
+    final database = opened.database;
+    await _seedOfflineQueueRow(database, now.subtract(const Duration(days: 2)));
+
+    final events = <OdooDatabaseReplaced>[];
+    runtime.databaseReplacements.listen(events.add);
+
+    await runtime.activate(scope, apiKey: 'key');
+    await Future<void>.delayed(Duration.zero);
+
+    expect(
+      await database.customSelect('SELECT * FROM offline_queue').get(),
+      isEmpty,
+      reason:
+          'un dato de hace 2 días no pudo escribirlo un usuario que existe '
+          'desde hace 1 hora — es de la base vieja y debe borrarse',
+    );
+    expect(await _readIdentity(database), userCreatedAt.toIso8601String());
+    expect(events, hasLength(1));
+    expect(events.single.discardedOperations, 1);
+    expect(events.single.operationsSummary, ['sale.order.create']);
+
+    await runtime.close();
+  });
+
+  test('legacy local data newer than the user is kept', () async {
+    // Lo contrario: la fila local es de hace 10 minutos y el usuario existe
+    // desde hace 2 días — perfectamente compatible con la misma base de
+    // siempre (el usuario ya existía cuando se escribió). Sin huella
+    // guardada todavía, se guarda y se sigue, sin borrar nada.
+    final owner = RuntimeDatabaseOwner(
+      factory: (_) => AppDatabase(NativeDatabase.memory()),
+    );
+    final now = DateTime.now().toUtc();
+    final userCreatedAt = now.subtract(const Duration(days: 2));
+    final runtime = SessionRuntime(
+      databaseOwner: owner,
+      clientFactory: _harmlessClientFactory(),
+      identityReader: (client, scope) async =>
+          userCreatedAt.toIso8601String(),
+    );
+    final scope = _scope(1);
+
+    final opened = await owner.open(scope);
+    final database = opened.database;
+    await _seedOfflineQueueRow(
+      database,
+      now.subtract(const Duration(minutes: 10)),
+    );
+
+    final events = <OdooDatabaseReplaced>[];
+    runtime.databaseReplacements.listen(events.add);
+
+    await runtime.activate(scope, apiKey: 'key');
+    await Future<void>.delayed(Duration.zero);
+
+    expect(
+      await database.customSelect('SELECT * FROM offline_queue').get(),
+      hasLength(1),
+      reason:
+          'una fila de hace 10 minutos es compatible con un usuario que '
+          'existe desde hace 2 días — no hay motivo para borrarla',
+    );
+    expect(await _readIdentity(database), userCreatedAt.toIso8601String());
     expect(events, isEmpty);
 
     await runtime.close();

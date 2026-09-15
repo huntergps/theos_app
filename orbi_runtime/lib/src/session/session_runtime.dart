@@ -158,14 +158,20 @@ final class SessionRuntime {
       );
 
   /// Compara la huella guardada de esta base local contra la que responde
-  /// el servidor ahora mismo. Sin fila guardada (primera activación, o una
-  /// instalación de antes de que existiera esta huella): la guarda y sigue,
-  /// sin borrar nada — nunca se trata "no sé" como "cambió". Si difiere, la
-  /// base de Odoo se reinstaló o se reemplazó: borra TODAS las tablas de
-  /// usuario de esta base local en una sola transacción y publica
-  /// [OdooDatabaseReplaced]. Cualquier error de la lectura (red, 401, lo
-  /// que sea) se propaga tal cual — quien llama deja fallar la activación
-  /// entera con él.
+  /// el servidor ahora mismo. Si difiere, borra. Si NO hay huella guardada
+  /// (primera activación de esta función, o una instalación de antes de que
+  /// existiera), no se asume inocencia a ciegas — huella nula (15-sep-2026,
+  /// caso real: el equipo ya tenía cachés de una base que se reinstaló ANTES
+  /// de que esta función existiera): un dato local sólo puede existir
+  /// DESPUÉS de que su usuario existiera en Odoo, porque para escribirlo
+  /// tuvo que entrar. Si la marca de escritura local MÁS ANTIGUA que ya hay
+  /// en la base es anterior al alta de este usuario (con un margen de una
+  /// hora por desfase de reloj), esos datos son de una base que ya no
+  /// existe — se tratan exactamente igual que una huella distinta. Sin
+  /// datos locales previos, o todos posteriores al alta: se guarda la
+  /// huella y se sigue, sin borrar nada. Cualquier error de la lectura del
+  /// servidor (red, 401, lo que sea) se propaga tal cual — quien llama deja
+  /// fallar la activación entera con él.
   Future<void> _verifyDatabaseIdentity({
     required AppScope scope,
     required OdooClient client,
@@ -182,18 +188,125 @@ final class SessionRuntime {
         ? null
         : storedRows.first.read<String>('value');
 
-    if (storedIdentity == null) {
-      await database.customStatement(
-        'INSERT OR REPLACE INTO sync_metadata (key, value) VALUES (?, ?)',
-        [odooDatabaseIdentityMetadataKey, serverIdentity],
-      );
-      return;
-    }
-    if (storedIdentity == serverIdentity) return;
+    if (storedIdentity != null && storedIdentity == serverIdentity) return;
 
-    // Difiere: cuenta y describe lo que se va a perder ANTES de borrarlo —
-    // la cola ya no vale nada contra la base nueva (mismos ids de usuario,
-    // otra base detrás), pero quien avise necesita poder decir qué era.
+    if (storedIdentity == null) {
+      final replaced = await _looksLikeDataFromAReplacedDatabase(
+        database: database,
+        userCreatedAt: serverIdentity,
+      );
+      if (!replaced) {
+        await database.customStatement(
+          'INSERT OR REPLACE INTO sync_metadata (key, value) VALUES (?, ?)',
+          [odooDatabaseIdentityMetadataKey, serverIdentity],
+        );
+        return;
+      }
+    }
+
+    await _wipeAndPublishReplacement(
+      scope: scope,
+      database: database,
+      newIdentity: serverIdentity,
+    );
+  }
+
+  /// `true` cuando ya hay datos locales de ESCRITURA LOCAL (nunca `write_date`
+  /// de Odoo) más viejos que el alta del usuario de este scope menos una
+  /// hora de margen — es decir, datos que sólo pudieron escribirse contra
+  /// una base de Odoo distinta de la actual, porque este usuario todavía no
+  /// existía cuando se guardaron. `userCreatedAt` inválido, o sin ninguna
+  /// marca local todavía, cuenta como "no": nunca se borra por una
+  /// comparación que no se pudo hacer.
+  Future<bool> _looksLikeDataFromAReplacedDatabase({
+    required AppDatabase database,
+    required String userCreatedAt,
+  }) async {
+    final createdAt = DateTime.tryParse(userCreatedAt)?.toUtc();
+    if (createdAt == null) return false;
+    final earliestLocal = await _earliestLocalWriteTimestamp(database);
+    if (earliestLocal == null) return false;
+    return earliestLocal.isBefore(
+      createdAt.subtract(const Duration(hours: 1)),
+    );
+  }
+
+  /// Tablas Drift reales cuya columna de fecha es una de ESCRITURA LOCAL
+  /// (el equipo la puso, nunca Odoo) y que Drift guarda como `DateTime`
+  /// nativo (por omisión, epoch — nunca texto):
+  /// - `offline_queue.created_at`: `DateTime.now().toUtc()` al encolar
+  ///   (`sale_runtime_adapters.dart`), no `write_date` ni nada del servidor.
+  /// - `sync_audit_log.created_offline_at`: doc de la propia tabla
+  ///   (`sync_tables.dart`), "When the operation was created locally".
+  /// - `related_record_cache.cached_at`: cuándo ESTE equipo cacheó el
+  ///   registro — distinto de su `write_date` (nullable, ese sí de Odoo).
+  static const _localDateTimeColumns = <(String, String)>[
+    ('offline_queue', 'created_at'),
+    ('sync_audit_log', 'created_offline_at'),
+    ('related_record_cache', 'cached_at'),
+  ];
+
+  /// Tablas propias de Orbi (creadas a mano por `RuntimeDatabaseOwner.open()`
+  /// / `ensureEnvasesOperationsSchema`, fuera del esquema Drift) cuya columna
+  /// de fecha es TEXTO ISO-8601 en UTC, siempre puesto por el propio equipo
+  /// (`DateTime.now().toUtc().toIso8601String()`) al leer o crear algo — cada
+  /// `orbi_envases_*_cache`/`orbi_stock_quant_cache.cached_at` lo dice en su
+  /// propio comentario ("local retrieval time, never presented as server
+  /// time"), y `orbi_envases_operations.creada_en` se pone al persistir la
+  /// intención offline (`envases_operations_durable.dart`).
+  ///
+  /// `orbi_editable_draft` y `sync_metadata` quedan FUERA: ninguna de las dos
+  /// tiene columna de fecha en su esquema, así que no hay nada que leer ahí.
+  static const _localTextTimestampColumns = <(String, String)>[
+    ('orbi_envases_dashboard_cache', 'cached_at'),
+    ('orbi_stock_quant_cache', 'cached_at'),
+    ('orbi_envases_por_recibir_cache', 'cached_at'),
+    ('orbi_envases_movimientos_cache', 'cached_at'),
+    ('orbi_envases_existencias_cache', 'cached_at'),
+    ('orbi_envases_sedes_cache', 'cached_at'),
+    ('orbi_envases_productos_cache', 'cached_at'),
+    ('orbi_envases_saldo_terceros_cache', 'cached_at'),
+    ('orbi_envases_operations', 'creada_en'),
+  ];
+
+  /// La marca de tiempo de escritura LOCAL más antigua que ya existe en esta
+  /// base, mirando sólo las columnas de [_localDateTimeColumns] (Drift,
+  /// epoch nativo) y [_localTextTimestampColumns] (texto ISO-8601 propio de
+  /// Orbi) — nunca una columna que venga de Odoo (`write_date`). `null` si
+  /// ninguna tabla tiene todavía una fila.
+  Future<DateTime?> _earliestLocalWriteTimestamp(AppDatabase database) async {
+    DateTime? earliest;
+    void consider(DateTime? candidate) {
+      if (candidate == null) return;
+      if (earliest == null || candidate.isBefore(earliest!)) {
+        earliest = candidate;
+      }
+    }
+
+    for (final (table, column) in _localDateTimeColumns) {
+      final row = await database
+          .customSelect('SELECT MIN($column) AS m FROM $table')
+          .getSingle();
+      consider(row.readNullable<DateTime>('m'));
+    }
+    for (final (table, column) in _localTextTimestampColumns) {
+      final row = await database
+          .customSelect('SELECT MIN($column) AS m FROM $table')
+          .getSingle();
+      final raw = row.readNullable<String>('m');
+      if (raw != null) consider(DateTime.tryParse(raw)?.toUtc());
+    }
+    return earliest;
+  }
+
+  /// Cuenta y describe lo que se va a perder ANTES de borrarlo, borra TODAS
+  /// las tablas de esta base local en una sola transacción, guarda la huella
+  /// nueva y publica [OdooDatabaseReplaced].
+  Future<void> _wipeAndPublishReplacement({
+    required AppScope scope,
+    required AppDatabase database,
+    required String newIdentity,
+  }) async {
     final queueRows = await database
         .customSelect(
           "SELECT model, method FROM offline_queue "
@@ -225,7 +338,7 @@ final class SessionRuntime {
       }
       await database.customStatement(
         'INSERT OR REPLACE INTO sync_metadata (key, value) VALUES (?, ?)',
-        [odooDatabaseIdentityMetadataKey, serverIdentity],
+        [odooDatabaseIdentityMetadataKey, newIdentity],
       );
     });
 
