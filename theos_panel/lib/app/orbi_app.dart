@@ -8,6 +8,12 @@ import 'preferences/app_preferences.dart';
 import 'router.dart';
 import 'session_composition.dart';
 
+/// El idioma fijo de toda la app — nunca el del sistema operativo. Vive como
+/// constante, y no repetido dentro de `build`, para que un test de
+/// localización (`orbi_app_locale_test.dart`) pueda comprobar EXACTAMENTE lo
+/// que usa `FluentApp.router` más abajo, no una copia que podría divergir.
+const Locale orbiAppLocale = Locale('es');
+
 /// La raíz de Orbi.
 ///
 /// Es `FluentApp`, no `MaterialApp`, por decisión del dueño del 11-sep-2026.
@@ -59,6 +65,24 @@ class OrbiApp extends ConsumerWidget {
         return FluentApp.router(
           title: 'Orbi ERP',
           debugShowCheckedModeBanner: false,
+          // 🔴 Causa raíz de las fechas en inglés («14 September 2026» en
+          // Enviar, «day / month / year» en Movimientos), medida el
+          // 14-sep-2026: sin `locale:`, `FluentApp` resuelve el idioma del
+          // SISTEMA operativo en vez de forzar español, así que en cualquier
+          // equipo con el sistema en inglés el `DatePicker` de fluent_ui
+          // (que arma los nombres de mes con `DateFormat.MMMM(locale)` de
+          // `package:intl`, ver `date_picker.dart` del paquete `fluent_ui`)
+          // sale en inglés. `theos_pos/lib/main.dart:235` ya fija
+          // `locale: const Locale('es')` en su propio `FluentApp.router` por
+          // la misma razón — aquí faltaba ese mismo fijado. No hace falta
+          // llamar `initializeDateFormatting`: `FluentApp` siempre incluye
+          // `GlobalMaterialLocalizations.delegate` (ver
+          // `fluent_app.dart` → `_localizationsDelegates`), y cargar esa
+          // localización ya inicializa los símbolos de fecha de `intl` para
+          // TODOS los idiomas (`loadDateIntlDataIfNotLoaded` en
+          // `flutter_localizations`) — lo único que faltaba era fijar qué
+          // idioma usa la app.
+          locale: orbiAppLocale,
           theme: OrbiFluentTheme.fromSeed(
             Color(snapshot.accentSeed),
             Brightness.light,
