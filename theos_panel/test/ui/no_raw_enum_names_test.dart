@@ -52,8 +52,12 @@ void main() {
     // `stock.warehouse`, no un enum — `EnvasesSedeOption.name`.
     'Text(sede.name)',
     // El nombre del envase que ofrece el formulario de envío: el `name` de
-    // `product.product`, no un enum — `EnvasesProductoOption.name`.
+    // `product.product`, no un enum — `EnvasesProductoOption.name`. La forma
+    // con coma es la del ítem del `AutoSuggestBox` de
+    // `EnvasesProductoField` (envases_producto_field.dart), que además le
+    // pone `maxLines`/`overflow`.
     'Text(producto.name)',
+    'Text(producto.name,',
   };
 
   // Contextos donde el nombre del enum ES el valor correcto porque no se

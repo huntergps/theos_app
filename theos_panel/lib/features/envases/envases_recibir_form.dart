@@ -1,17 +1,39 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:odoo_widgets/odoo_widgets.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 
 import '../../ui/components/orbi_components.dart';
 import '../../ui/fluent/orbi_page.dart';
 import 'envases_form_draft_port.dart';
 import 'envases_uuid.dart';
+import 'widgets/envases_form_actions.dart';
+import 'widgets/envases_form_layout.dart';
 
 /// Id del borrador durable de una recepción: uno por traslado, con el mismo
 /// `pickingId` que ya identifica la fila (`EnvasesPorRecibirRow.id`).
 String envasesRecepcionDraftId(int pickingId) => 'envases.recepcion.$pickingId';
+
+class _LineaControllers {
+  _LineaControllers(this.linea) : llegaronValue = linea.pendientes, danadasValue = 0;
+
+  final EnvasesPickingLineaRow linea;
+  double? llegaronValue;
+  double? danadasValue;
+
+  double get aptos => math.max(0, (llegaronValue ?? 0) - (danadasValue ?? 0));
+  double get pendiente => math.max(0, linea.pendientes - (llegaronValue ?? 0));
+}
+
+String _fmt(double value) => value == value.roundToDouble() ? value.toInt().toString() : value.toString();
+
+String _formatDate(DateTime? value) {
+  if (value == null) return '—';
+  final local = value.toLocal();
+  String two(int number) => number.toString().padLeft(2, '0');
+  return '${two(local.day)}/${two(local.month)}/${local.year} ${two(local.hour)}:${two(local.minute)}';
+}
 
 /// Recibir un traslado pendiente (ENV-06, BODEGA-ENVASES teléfono).
 ///
@@ -28,6 +50,7 @@ class EnvasesRecibirForm extends StatefulWidget {
     required this.lineasLoader,
     required this.operations,
     this.onCompleted,
+    this.onCancel,
     this.draftPort,
   });
 
@@ -36,6 +59,11 @@ class EnvasesRecibirForm extends StatefulWidget {
   final EnvasesOperations operations;
   final VoidCallback? onCompleted;
 
+  /// Cerrar sin guardar. Nulo cuando la pantalla no tiene a dónde volver
+  /// (por ejemplo, en los tests existentes) — entonces no se ofrece
+  /// «Cancelar».
+  final VoidCallback? onCancel;
+
   /// Persistencia opcional del borrador. Sin él (por ejemplo, en los tests
   /// existentes) el formulario funciona igual que antes: sólo en memoria.
   final EnvasesFormDraftPort? draftPort;
@@ -43,27 +71,6 @@ class EnvasesRecibirForm extends StatefulWidget {
   @override
   State<EnvasesRecibirForm> createState() => _EnvasesRecibirFormState();
 }
-
-class _LineaControllers {
-  _LineaControllers(EnvasesPickingLineaRow linea)
-    : linea = linea,
-      llegaron = TextEditingController(text: _fmt(linea.pendientes)),
-      danadas = TextEditingController(text: _fmt(0));
-
-  final EnvasesPickingLineaRow linea;
-  final TextEditingController llegaron;
-  final TextEditingController danadas;
-
-  double? get llegaronValue => double.tryParse(llegaron.text.trim());
-  double? get danadasValue => double.tryParse(danadas.text.trim());
-
-  void dispose() {
-    llegaron.dispose();
-    danadas.dispose();
-  }
-}
-
-String _fmt(double value) => value == value.roundToDouble() ? value.toInt().toString() : value.toString();
 
 class _EnvasesRecibirFormState extends State<EnvasesRecibirForm> {
   List<_LineaControllers>? _lineas;
@@ -124,8 +131,8 @@ class _EnvasesRecibirFormState extends State<EnvasesRecibirForm> {
       // sesiones): se descarta en silencio.
       for (final controller in lineas) {
         if (controller.linea.moveId == moveId) {
-          controller.llegaron.text = _fmt(llegaron.toDouble());
-          controller.danadas.text = _fmt(danadas.toDouble());
+          controller.llegaronValue = llegaron.toDouble();
+          controller.danadasValue = danadas.toDouble();
           recovered = true;
           break;
         }
@@ -152,9 +159,6 @@ class _EnvasesRecibirFormState extends State<EnvasesRecibirForm> {
   @override
   void dispose() {
     _autoSave?.dispose();
-    for (final controller in _lineas ?? const <_LineaControllers>[]) {
-      controller.dispose();
-    }
     super.dispose();
   }
 
@@ -173,6 +177,13 @@ class _EnvasesRecibirFormState extends State<EnvasesRecibirForm> {
     final lineas = _lineas;
     if (lineas == null || lineas.isEmpty) return false;
     return lineas.every((c) => _errorDe(c) == null);
+  }
+
+  String? get _ayuda {
+    final lineas = _lineas;
+    if (lineas == null || lineas.isEmpty) return null;
+    if (_valido) return null;
+    return 'Corrige las líneas marcadas en rojo antes de guardar.';
   }
 
   Future<void> _guardar() async {
@@ -221,86 +232,306 @@ class _EnvasesRecibirFormState extends State<EnvasesRecibirForm> {
           ? OrbiErrorState(message: 'No se pudieron leer las líneas del traslado.', onRetry: _load)
           : _lineas == null
           ? const Center(child: ProgressRing(key: Key('envases-recibir-loading')))
-          : _body(context),
+          : EnvasesFormWidth(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(child: SingleChildScrollView(child: _body(context))),
+                  const SizedBox(height: 16),
+                  EnvasesFormActions(
+                    primaryKey: const Key('envases-recibir-guardar'),
+                    primaryLabel: 'Guardar recepción',
+                    onPrimary: _valido && !_saving ? _guardar : null,
+                    saving: _saving,
+                    onCancel: widget.onCancel,
+                    helpText: _ayuda,
+                    error: _saveError,
+                    notice: _saveNotice,
+                  ),
+                ],
+              ),
+            ),
     );
   }
 
   Widget _body(BuildContext context) {
     final lineas = _lineas!;
-    return OrbiForm.filling(
-      sections: [
-        OrbiFormSection(
-          fields: [
-            if (_recoveredNotice)
-              OrbiField(
-                label: '',
-                span: 2,
-                child: InfoBar(
-                  title: const Text('Recuperamos lo que estabas registrando.'),
-                  severity: InfoBarSeverity.info,
+    final typography = FluentTheme.of(context).typography;
+    final totalEnviado = lineas.fold<double>(0, (sum, c) => sum + c.linea.pendientes);
+    final totalRecibido = lineas.fold<double>(0, (sum, c) => sum + (c.llegaronValue ?? 0));
+    final totalDanado = lineas.fold<double>(0, (sum, c) => sum + (c.danadasValue ?? 0));
+    final totalPendiente = math.max(0.0, totalEnviado - totalRecibido);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (_recoveredNotice)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: InfoBar(
+              title: const Text('Recuperamos lo que estabas registrando.'),
+              severity: InfoBarSeverity.info,
+            ),
+          ),
+        Row(
+          children: [
+            Expanded(child: Text('Traslado ${widget.row.name}', style: typography.subtitle)),
+            const OrbiStatusChip(label: 'En tránsito', icon: FluentIcons.sync_status_solid),
+          ],
+        ),
+        const SizedBox(height: 12),
+        EnvasesFieldsRow(
+          slots: [
+            EnvasesFieldSlot(
+              width: 220,
+              field: EnvasesInfoField(label: 'Origen', value: widget.row.origenName ?? 'Origen desconocido'),
+            ),
+            EnvasesFieldSlot(
+              width: 220,
+              field: EnvasesInfoField(label: 'Destino', value: widget.row.destinoName ?? 'Destino desconocido'),
+            ),
+            EnvasesFieldSlot(
+              width: 220,
+              field: EnvasesInfoField(label: 'Fecha de salida', value: _formatDate(widget.row.fechaSalida)),
+            ),
+          ],
+        ),
+        const SizedBox(height: 24),
+        Text('Detalle', style: typography.subtitle),
+        const SizedBox(height: 12),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final isWide = constraints.maxWidth >= kEnvasesDesktopBreakpoint;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (isWide) _tablaHeader(context),
+                for (final controller in lineas)
+                  isWide ? _tablaFila(context, controller) : _tarjeta(context, controller),
+              ],
+            );
+          },
+        ),
+        const SizedBox(height: 24),
+        Text('Resumen', style: typography.subtitle),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 32,
+          runSpacing: 12,
+          children: [
+            EnvasesInfoField(label: 'Total enviado', value: _fmt(totalEnviado)),
+            EnvasesInfoField(label: 'Total recibido', value: _fmt(totalRecibido)),
+            EnvasesInfoField(label: 'Total dañados', value: _fmt(totalDanado)),
+            EnvasesInfoField(label: 'Pendiente por recibir', value: _fmt(totalPendiente)),
+          ],
+        ),
+        if (totalPendiente > 0)
+          Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: InfoBar(
+              key: const Key('envases-recibir-diferencias'),
+              title: Text('Existen diferencias: quedan ${_fmt(totalPendiente)} envases pendientes por recibir.'),
+              severity: InfoBarSeverity.info,
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _tablaHeader(BuildContext context) {
+    final style = FluentTheme.of(context).typography.bodyStrong;
+    Widget columna(String label, double width) =>
+        SizedBox(width: width, child: Text(label, style: style, textAlign: TextAlign.right));
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          const SizedBox(width: 220, child: Text('')),
+          const SizedBox(width: 16),
+          columna('Enviados', 80),
+          const SizedBox(width: 16),
+          columna('Llegaron', 100),
+          const SizedBox(width: 16),
+          columna('Dañados', 100),
+          const SizedBox(width: 16),
+          columna('Aptos', 80),
+          const SizedBox(width: 16),
+          columna('Pendiente', 90),
+        ],
+      ),
+    );
+  }
+
+  Widget _tablaFila(BuildContext context, _LineaControllers controller) {
+    final theme = FluentTheme.of(context);
+    final error = _errorDe(controller);
+    final moveId = controller.linea.moveId;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              SizedBox(
+                width: 220,
+                child: Text(controller.linea.productName, style: theme.typography.body, overflow: TextOverflow.ellipsis),
+              ),
+              const SizedBox(width: 16),
+              SizedBox(
+                width: 80,
+                child: Text(
+                  '${_fmt(controller.linea.pendientes)} ${controller.linea.uomName}',
+                  textAlign: TextAlign.right,
+                  style: theme.typography.caption,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-            for (final controller in lineas)
-              OrbiField(
-                label: controller.linea.productName,
-                span: 2,
-                hint: 'Pendientes: ${_fmt(controller.linea.pendientes)} ${controller.linea.uomName}. '
-                    'Aptas: ${_fmt((controller.llegaronValue ?? 0) - (controller.danadasValue ?? 0))}',
-                error: _errorDe(controller),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: TextBox(
-                        key: Key('envases-recibir-llegaron-${controller.linea.moveId}'),
-                        controller: controller.llegaron,
-                        placeholder: 'Llegaron',
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        onChanged: (_) {
-                          setState(() {});
-                          _scheduleDraftSave();
-                        },
-                      ),
+              const SizedBox(width: 16),
+              SizedBox(
+                width: 100,
+                child: NumberBox<double>(
+                  key: Key('envases-recibir-llegaron-$moveId'),
+                  value: controller.llegaronValue,
+                  mode: SpinButtonPlacementMode.none,
+                  textAlign: TextAlign.right,
+                  onChanged: (value) {
+                    setState(() => controller.llegaronValue = value);
+                    _scheduleDraftSave();
+                  },
+                ),
+              ),
+              const SizedBox(width: 16),
+              SizedBox(
+                width: 100,
+                child: NumberBox<double>(
+                  key: Key('envases-recibir-danadas-$moveId'),
+                  value: controller.danadasValue,
+                  mode: SpinButtonPlacementMode.none,
+                  textAlign: TextAlign.right,
+                  onChanged: (value) {
+                    setState(() => controller.danadasValue = value);
+                    _scheduleDraftSave();
+                  },
+                ),
+              ),
+              const SizedBox(width: 16),
+              SizedBox(
+                width: 80,
+                child: Text(
+                  _fmt(controller.aptos),
+                  key: Key('envases-recibir-aptos-$moveId'),
+                  textAlign: TextAlign.right,
+                  style: theme.typography.bodyStrong,
+                ),
+              ),
+              const SizedBox(width: 16),
+              SizedBox(
+                width: 90,
+                child: Text(
+                  _fmt(controller.pendiente),
+                  key: Key('envases-recibir-pendiente-$moveId'),
+                  textAlign: TextAlign.right,
+                  style: theme.typography.bodyStrong?.copyWith(
+                    color: controller.pendiente > 0 ? theme.resources.systemFillColorCritical : null,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (error != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                error,
+                style: theme.typography.caption?.copyWith(color: theme.resources.systemFillColorCritical),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _tarjeta(BuildContext context, _LineaControllers controller) {
+    final theme = FluentTheme.of(context);
+    final error = _errorDe(controller);
+    final moveId = controller.linea.moveId;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Card(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(controller.linea.productName, style: theme.typography.bodyStrong),
+            const SizedBox(height: 4),
+            Text(
+              'Enviados: ${_fmt(controller.linea.pendientes)} ${controller.linea.uomName}',
+              style: theme.typography.caption,
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: EnvasesField(
+                    label: 'Llegaron',
+                    child: NumberBox<double>(
+                      key: Key('envases-recibir-llegaron-$moveId'),
+                      value: controller.llegaronValue,
+                      mode: SpinButtonPlacementMode.inline,
+                      onChanged: (value) {
+                        setState(() => controller.llegaronValue = value);
+                        _scheduleDraftSave();
+                      },
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextBox(
-                        key: Key('envases-recibir-danadas-${controller.linea.moveId}'),
-                        controller: controller.danadas,
-                        placeholder: 'Dañadas (incluidas en llegaron)',
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        onChanged: (_) {
-                          setState(() {});
-                          _scheduleDraftSave();
-                        },
-                      ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: EnvasesField(
+                    label: 'Dañados',
+                    child: NumberBox<double>(
+                      key: Key('envases-recibir-danadas-$moveId'),
+                      value: controller.danadasValue,
+                      mode: SpinButtonPlacementMode.inline,
+                      onChanged: (value) {
+                        setState(() => controller.danadasValue = value);
+                        _scheduleDraftSave();
+                      },
                     ),
-                  ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: EnvasesInfoField(
+                    key: Key('envases-recibir-aptos-$moveId'),
+                    label: 'Aptos',
+                    value: _fmt(controller.aptos),
+                  ),
+                ),
+                Expanded(
+                  child: EnvasesInfoField(
+                    key: Key('envases-recibir-pendiente-$moveId'),
+                    label: 'Pendiente',
+                    value: _fmt(controller.pendiente),
+                  ),
+                ),
+              ],
+            ),
+            if (error != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  error,
+                  style: theme.typography.caption?.copyWith(color: theme.resources.systemFillColorCritical),
                 ),
               ),
           ],
         ),
-      ],
-      actions: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (_saveError != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: InfoBar(title: const Text('No se pudo guardar'), content: Text(_saveError!), severity: InfoBarSeverity.error),
-            ),
-          if (_saveNotice != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: InfoBar(title: Text(_saveNotice!), severity: InfoBarSeverity.warning),
-            ),
-          FilledButton(
-            key: const Key('envases-recibir-guardar'),
-            onPressed: _valido && !_saving ? _guardar : null,
-            child: _saving
-                ? const SizedBox(width: 16, height: 16, child: ProgressRing(strokeWidth: 2))
-                : const Text('Guardar recepción'),
-          ),
-        ],
       ),
     );
   }

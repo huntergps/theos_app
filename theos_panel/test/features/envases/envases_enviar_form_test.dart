@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 import 'package:theos_panel/features/envases/envases_enviar_form.dart';
 import 'package:theos_panel/features/envases/envases_form_draft_port.dart';
+import 'package:theos_panel/features/envases/widgets/envases_producto_field.dart';
 import 'package:theos_panel/ui/fluent/orbi_fluent_theme.dart';
 
 /// Puerto de borrador en memoria, para no arrastrar Drift a estos tests de
@@ -74,6 +75,7 @@ Widget _host({
   required EnvasesOperations operations,
   VoidCallback? onCompleted,
   EnvasesFormDraftPort? draftPort,
+  List<EnvasesProductoOption> productos = const [EnvasesProductoOption(id: 50, name: 'Jaba 12', uomName: 'Unidades')],
 }) => FluentApp(
   theme: OrbiFluentTheme.light,
   home: EnvasesEnviarForm(
@@ -83,12 +85,21 @@ Widget _host({
       EnvasesSedeOption(id: 2, name: 'Manta'),
       EnvasesSedeOption(id: 3, name: 'Quito'),
     ],
-    productos: const [EnvasesProductoOption(id: 50, name: 'Jaba 12', uomName: 'Unidades')],
+    productos: productos,
     operations: operations,
     onCompleted: onCompleted,
     draftPort: draftPort,
   ),
 );
+
+/// `NumberBox` (a diferencia del `TextBox` que reemplaza) sólo actualiza su
+/// `value` cuando pierde el foco o recibe una acción de envío — nunca en
+/// cada tecla — así que cada prueba que teclea una cantidad tiene que cerrar
+/// la edición explícitamente para que el `onChanged` del formulario corra.
+Future<void> _commitNumberBox(WidgetTester tester) async {
+  await tester.testTextInput.receiveAction(TextInputAction.done);
+  await tester.pump();
+}
 
 void main() {
   testWidgets('destino combo box never offers the chosen origen', (tester) async {
@@ -153,6 +164,7 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.enterText(find.byKey(const Key('envases-enviar-cantidad-0')), '3');
+    await _commitNumberBox(tester);
     await tester.pumpAndSettle();
 
     await tester.tap(find.byKey(const Key('envases-enviar-confirmar')));
@@ -183,10 +195,10 @@ void main() {
     expect(tester.widget<ComboBox<int>>(find.byKey(const Key('envases-enviar-origen'))).value, 2);
     expect(tester.widget<ComboBox<int>>(find.byKey(const Key('envases-enviar-destino'))).value, 3);
     expect(
-      tester.widget<ComboBox<EnvasesProductoOption>>(find.byKey(const Key('envases-enviar-producto-0'))).value?.id,
+      tester.widget<EnvasesProductoField>(find.byKey(const Key('envases-enviar-producto-0'))).value?.id,
       50,
     );
-    expect(tester.widget<TextBox>(find.byKey(const Key('envases-enviar-cantidad-0'))).controller!.text, '4');
+    expect(tester.widget<NumberBox<double>>(find.byKey(const Key('envases-enviar-cantidad-0'))).value, 4);
     expect(find.text('Recuperamos lo que estabas registrando.'), findsOneWidget);
   });
 
@@ -195,7 +207,17 @@ void main() {
     await tester.pumpWidget(_host(operations: _FakeEnvasesOperations(), draftPort: port));
     await tester.pumpAndSettle();
 
+    // Sin origen elegido y sin ningún envase todavía, la tabla de líneas no
+    // se muestra (el formulario pide elegir la sede primero) — hay que
+    // elegir una para que exista el campo de cantidad que esta prueba
+    // teclea.
+    await tester.tap(find.byKey(const Key('envases-enviar-origen')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Guayaquil').last);
+    await tester.pumpAndSettle();
+
     await tester.enterText(find.byKey(const Key('envases-enviar-cantidad-0')), '5');
+    await _commitNumberBox(tester);
     await tester.pump(const Duration(milliseconds: 350));
 
     expect(port.stored[envasesEnvioDraftId]?['lineas'], [
@@ -221,6 +243,7 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.enterText(find.byKey(const Key('envases-enviar-cantidad-0')), '3');
+      await _commitNumberBox(tester);
       await tester.pumpAndSettle();
     }
 
@@ -257,9 +280,9 @@ void main() {
 
     expect(find.byKey(const Key('envases-enviar-producto-1')), findsNothing);
     expect(
-      tester.widget<ComboBox<EnvasesProductoOption>>(find.byKey(const Key('envases-enviar-producto-0'))).value?.id,
+      tester.widget<EnvasesProductoField>(find.byKey(const Key('envases-enviar-producto-0'))).value?.id,
       50,
     );
-    expect(tester.widget<TextBox>(find.byKey(const Key('envases-enviar-cantidad-0'))).controller!.text, '2');
+    expect(tester.widget<NumberBox<double>>(find.byKey(const Key('envases-enviar-cantidad-0'))).value, 2);
   });
 }

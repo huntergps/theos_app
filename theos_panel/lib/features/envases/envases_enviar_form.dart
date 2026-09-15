@@ -1,12 +1,14 @@
 import 'dart:async';
 
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:odoo_widgets/odoo_widgets.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 
 import '../../ui/fluent/orbi_page.dart';
 import 'envases_form_draft_port.dart';
 import 'envases_uuid.dart';
+import 'widgets/envases_form_actions.dart';
+import 'widgets/envases_form_layout.dart';
+import 'widgets/envases_producto_field.dart';
 
 /// Id del único borrador durable del formulario de envío. Hay un solo
 /// formulario de envío activo a la vez (a diferencia de la recepción, que
@@ -33,13 +35,9 @@ final class EnvasesProductoOption {
 }
 
 class _LineaEnvio {
-  _LineaEnvio({double cantidad = 1}) : cantidadController = TextEditingController(text: _fmt(cantidad));
+  _LineaEnvio({this.cantidad = 1});
   EnvasesProductoOption? producto;
-  final TextEditingController cantidadController;
-
-  double? get cantidad => double.tryParse(cantidadController.text.trim());
-
-  void dispose() => cantidadController.dispose();
+  double? cantidad;
 }
 
 String _fmt(double value) => value == value.roundToDouble() ? value.toInt().toString() : value.toString();
@@ -49,6 +47,12 @@ String _fmt(double value) => value == value.roundToDouble() ? value.toInt().toSt
 /// cualquier sede con `controla_envases` distinta del origen elegido. Sin
 /// comprobar disponible aquí — eso lo decide Odoo al aplicar
 /// `l10n_ec.stock.envases.wizard.envio`.
+///
+/// Diseño aprobado (`docs/orbi_panel/visual_baselines/approved/round-02/`):
+/// datos generales en una fila de campos de ancho fijo, líneas en tabla
+/// (tarjeta en teléfono) con «Envase», «Cantidad» y quitar, y la acción
+/// principal alineada a la derecha del contenido — no una barra a todo el
+/// ancho.
 class EnvasesEnviarForm extends StatefulWidget {
   const EnvasesEnviarForm({
     super.key,
@@ -57,6 +61,7 @@ class EnvasesEnviarForm extends StatefulWidget {
     required this.productos,
     required this.operations,
     this.onCompleted,
+    this.onCancel,
     this.draftPort,
   });
 
@@ -65,6 +70,11 @@ class EnvasesEnviarForm extends StatefulWidget {
   final List<EnvasesProductoOption> productos;
   final EnvasesOperations operations;
   final VoidCallback? onCompleted;
+
+  /// Cerrar sin guardar. Nulo cuando la pantalla no tiene a dónde volver
+  /// (por ejemplo, en los tests existentes) — entonces no se ofrece
+  /// «Cancelar».
+  final VoidCallback? onCancel;
 
   /// Persistencia opcional del borrador. Sin él (por ejemplo, en los tests
   /// existentes) el formulario funciona igual que antes: sólo en memoria.
@@ -99,9 +109,6 @@ class _EnvasesEnviarFormState extends State<EnvasesEnviarForm> {
   @override
   void dispose() {
     _autoSave?.dispose();
-    for (final linea in _lineas) {
-      linea.dispose();
-    }
     super.dispose();
   }
 
@@ -157,9 +164,6 @@ class _EnvasesEnviarFormState extends State<EnvasesEnviarForm> {
       if (origenId != null) _origenId = origenId;
       if (destinoId != null) _destinoId = destinoId;
       if (restoredLineas.isNotEmpty) {
-        for (final linea in _lineas) {
-          linea.dispose();
-        }
         _lineas
           ..clear()
           ..addAll(restoredLineas);
@@ -182,11 +186,34 @@ class _EnvasesEnviarFormState extends State<EnvasesEnviarForm> {
   List<EnvasesSedeOption> get _destinosDisponibles =>
       widget.sedesDestinoPosibles.where((sede) => sede.id != _origenId).toList(growable: false);
 
+  bool get _fechaValida => !_fechaSalida.isAfter(DateTime.now());
+
+  Iterable<_LineaEnvio> get _lineasValidas =>
+      _lineas.where((l) => l.producto != null && (l.cantidad ?? 0) > 0);
+
   bool get _valido {
     if (_origenId == null || _destinoId == null || _origenId == _destinoId) return false;
-    if (_fechaSalida.isAfter(DateTime.now())) return false;
-    final lineasValidas = _lineas.where((l) => l.producto != null && (l.cantidad ?? 0) > 0);
+    if (!_fechaValida) return false;
+    final lineasValidas = _lineasValidas;
     return lineasValidas.isNotEmpty && lineasValidas.length == _lineas.length;
+  }
+
+  /// Qué falta para poder confirmar, en palabras — visible junto al botón
+  /// mientras esté deshabilitado en vez de dejarlo mudo. `null` cuando ya se
+  /// puede confirmar.
+  String? get _ayuda {
+    if (_origenId != null && _destinoId != null && _origenId == _destinoId) {
+      return 'El origen y el destino tienen que ser sedes distintas.';
+    }
+    if (!_fechaValida) return 'La fecha de salida no puede ser futura.';
+    final faltantes = <String>[
+      if (_origenId == null) 'la sede de origen',
+      if (_destinoId == null) 'la de destino',
+      if (_lineasValidas.isEmpty) 'al menos un envase',
+    ];
+    if (faltantes.isEmpty) return null;
+    if (faltantes.length == 1) return 'Elige ${faltantes.single}.';
+    return 'Elige ${faltantes.sublist(0, faltantes.length - 1).join(', ')} y ${faltantes.last}.';
   }
 
   void _agregarLinea() {
@@ -196,10 +223,7 @@ class _EnvasesEnviarFormState extends State<EnvasesEnviarForm> {
 
   void _quitarLinea(_LineaEnvio linea) {
     if (_lineas.length <= 1) return;
-    setState(() {
-      _lineas.remove(linea);
-      linea.dispose();
-    });
+    setState(() => _lineas.remove(linea));
     _scheduleDraftSave();
   }
 
@@ -243,25 +267,55 @@ class _EnvasesEnviarFormState extends State<EnvasesEnviarForm> {
     return OrbiPage(
       title: 'Enviar envases',
       subtitle: 'Traslado entre sedes',
-      child: OrbiForm.filling(
-        sections: [
-          OrbiFormSection(
-            fields: [
-              if (_recoveredNotice)
-                OrbiField(
-                  label: '',
-                  span: 2,
-                  child: InfoBar(
-                    title: const Text('Recuperamos lo que estabas registrando.'),
-                    severity: InfoBarSeverity.info,
-                  ),
-                ),
-              OrbiField(
+      child: EnvasesFormWidth(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(child: SingleChildScrollView(child: _body(context))),
+            const SizedBox(height: 16),
+            EnvasesFormActions(
+              primaryKey: const Key('envases-enviar-confirmar'),
+              primaryLabel: 'Enviar',
+              onPrimary: _valido && !_saving ? _enviar : null,
+              saving: _saving,
+              onCancel: widget.onCancel,
+              helpText: _ayuda,
+              errorTitle: 'No se pudo enviar',
+              error: _saveError,
+              notice: _saveNotice,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _body(BuildContext context) {
+    final typography = FluentTheme.of(context).typography;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (_recoveredNotice)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: InfoBar(
+              title: const Text('Recuperamos lo que estabas registrando.'),
+              severity: InfoBarSeverity.info,
+            ),
+          ),
+        Text('Datos del envío', style: typography.subtitle),
+        const SizedBox(height: 12),
+        EnvasesFieldsRow(
+          slots: [
+            EnvasesFieldSlot(
+              width: 260,
+              field: EnvasesField(
                 label: 'Sede de origen',
                 required: true,
                 child: ComboBox<int>(
                   key: const Key('envases-enviar-origen'),
                   placeholder: const Text('Elige una sede'),
+                  isExpanded: true,
                   value: _origenId,
                   items: [
                     for (final sede in widget.sedesUsuario)
@@ -276,12 +330,16 @@ class _EnvasesEnviarFormState extends State<EnvasesEnviarForm> {
                   },
                 ),
               ),
-              OrbiField(
+            ),
+            EnvasesFieldSlot(
+              width: 260,
+              field: EnvasesField(
                 label: 'Sede de destino',
                 required: true,
                 child: ComboBox<int>(
                   key: const Key('envases-enviar-destino'),
                   placeholder: const Text('Elige una sede'),
+                  isExpanded: true,
                   value: _destinoId,
                   items: [
                     for (final sede in _destinosDisponibles)
@@ -293,104 +351,191 @@ class _EnvasesEnviarFormState extends State<EnvasesEnviarForm> {
                   },
                 ),
               ),
-              OrbiField(
+            ),
+            EnvasesFieldSlot(
+              width: 220,
+              field: EnvasesField(
                 label: 'Fecha de salida',
                 required: true,
                 child: DatePicker(
                   key: const Key('envases-enviar-fecha'),
                   selected: _fechaSalida,
-                  onChanged: (value) => setState(
-                    () => _fechaSalida = DateTime(
-                      value.year,
-                      value.month,
-                      value.day,
-                      _fechaSalida.hour,
-                      _fechaSalida.minute,
-                    ),
-                  ),
+                  onChanged: (value) {
+                    setState(
+                      () => _fechaSalida = DateTime(
+                        value.year,
+                        value.month,
+                        value.day,
+                        _fechaSalida.hour,
+                        _fechaSalida.minute,
+                      ),
+                    );
+                    _scheduleDraftSave();
+                  },
                 ),
               ),
-            ],
-          ),
-          OrbiFormSection(
-            title: 'Envases',
-            fields: [
-              for (final linea in _lineas)
-                OrbiField(
-                  label: 'Envase',
-                  span: 2,
-                  child: Row(
-                    children: [
-                      Expanded(
-                        flex: 2,
-                        child: ComboBox<EnvasesProductoOption>(
-                          key: Key('envases-enviar-producto-${_lineas.indexOf(linea)}'),
-                          placeholder: const Text('Elige un envase'),
-                          value: linea.producto,
-                          items: [
-                            for (final producto in widget.productos)
-                              ComboBoxItem(value: producto, child: Text(producto.name)),
-                          ],
-                          onChanged: (value) {
-                            setState(() => linea.producto = value);
-                            _scheduleDraftSave();
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: TextBox(
-                          key: Key('envases-enviar-cantidad-${_lineas.indexOf(linea)}'),
-                          controller: linea.cantidadController,
-                          placeholder: 'Cantidad',
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                          onChanged: (_) {
-                            setState(() {});
-                            _scheduleDraftSave();
-                          },
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(FluentIcons.delete),
-                        onPressed: _lineas.length <= 1 ? null : () => _quitarLinea(linea),
-                      ),
-                    ],
-                  ),
-                ),
-              OrbiField(
-                label: '',
-                span: 2,
-                child: Button(
-                  key: const Key('envases-enviar-agregar-linea'),
-                  onPressed: _agregarLinea,
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [Icon(FluentIcons.add), SizedBox(width: 6), Text('Agregar envase')],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-        actions: Column(
+            ),
+          ],
+        ),
+        const SizedBox(height: 24),
+        Text('Envases', style: typography.subtitle),
+        const SizedBox(height: 12),
+        // Sin origen elegido y todavía sin ningún envase seleccionado (el
+        // estado inicial: una sola línea vacía), la tabla se reemplaza por
+        // este aviso — pero un borrador restaurado que YA trae envases
+        // elegidos se sigue mostrando aunque el origen no se haya
+        // restaurado con él (por ejemplo, porque la sede guardada ya no es
+        // válida): no tiene sentido esconder líneas que el usuario ya
+        // llenó.
+        if (_origenId == null && _lineas.every((l) => l.producto == null))
+          const Text('Elige la sede de origen para agregar envases.')
+        else
+          _lineasArea(context),
+      ],
+    );
+  }
+
+  Widget _lineasArea(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth >= kEnvasesDesktopBreakpoint;
+        return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (_saveError != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: InfoBar(title: const Text('No se pudo enviar'), content: Text(_saveError!), severity: InfoBarSeverity.error),
+            if (isWide) _lineasTablaHeader(context),
+            for (var i = 0; i < _lineas.length; i++)
+              isWide ? _lineaFila(context, i) : _lineaTarjeta(context, i),
+            const SizedBox(height: 8),
+            Button(
+              key: const Key('envases-enviar-agregar-linea'),
+              onPressed: _agregarLinea,
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [Icon(FluentIcons.add), SizedBox(width: 6), Text('Agregar envase')],
               ),
-            if (_saveNotice != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: InfoBar(title: Text(_saveNotice!), severity: InfoBarSeverity.warning),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Text(
+                  'Total envases: ${_fmt(_lineas.fold<double>(0, (sum, l) => sum + (l.cantidad ?? 0)))}',
+                  key: const Key('envases-enviar-total'),
+                  style: FluentTheme.of(context).typography.bodyStrong,
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _lineasTablaHeader(BuildContext context) {
+    final style = FluentTheme.of(context).typography.bodyStrong;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          SizedBox(width: 420, child: Text('Envase', style: style)),
+          const SizedBox(width: 24),
+          SizedBox(width: 120, child: Text('Cantidad', style: style, textAlign: TextAlign.right)),
+          const SizedBox(width: 24),
+          const SizedBox(width: 40),
+        ],
+      ),
+    );
+  }
+
+  Widget _lineaFila(BuildContext context, int index) {
+    final linea = _lineas[index];
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: 420,
+            child: EnvasesProductoField(
+              key: Key('envases-enviar-producto-$index'),
+              productos: widget.productos,
+              value: linea.producto,
+              onChanged: (value) {
+                setState(() => linea.producto = value);
+                _scheduleDraftSave();
+              },
+            ),
+          ),
+          const SizedBox(width: 24),
+          SizedBox(
+            width: 120,
+            child: NumberBox<double>(
+              key: Key('envases-enviar-cantidad-$index'),
+              value: linea.cantidad,
+              mode: SpinButtonPlacementMode.none,
+              placeholder: 'Cantidad',
+              onChanged: (value) {
+                setState(() => linea.cantidad = value);
+                _scheduleDraftSave();
+              },
+            ),
+          ),
+          const SizedBox(width: 24),
+          SizedBox(
+            width: 40,
+            child: IconButton(
+              key: Key('envases-enviar-quitar-$index'),
+              icon: const Icon(FluentIcons.delete),
+              onPressed: _lineas.length <= 1 ? null : () => _quitarLinea(linea),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _lineaTarjeta(BuildContext context, int index) {
+    final linea = _lineas[index];
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Card(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: EnvasesProductoField(
+                    key: Key('envases-enviar-producto-$index'),
+                    productos: widget.productos,
+                    value: linea.producto,
+                    onChanged: (value) {
+                      setState(() => linea.producto = value);
+                      _scheduleDraftSave();
+                    },
+                  ),
+                ),
+                IconButton(
+                  key: Key('envases-enviar-quitar-$index'),
+                  icon: const Icon(FluentIcons.delete),
+                  onPressed: _lineas.length <= 1 ? null : () => _quitarLinea(linea),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            EnvasesField(
+              label: 'Cantidad',
+              child: NumberBox<double>(
+                key: Key('envases-enviar-cantidad-$index'),
+                value: linea.cantidad,
+                mode: SpinButtonPlacementMode.inline,
+                placeholder: 'Cantidad',
+                onChanged: (value) {
+                  setState(() => linea.cantidad = value);
+                  _scheduleDraftSave();
+                },
               ),
-            FilledButton(
-              key: const Key('envases-enviar-confirmar'),
-              onPressed: _valido && !_saving ? _enviar : null,
-              child: _saving
-                  ? const SizedBox(width: 16, height: 16, child: ProgressRing(strokeWidth: 2))
-                  : const Text('Enviar'),
             ),
           ],
         ),

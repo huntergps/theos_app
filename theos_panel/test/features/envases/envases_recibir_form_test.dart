@@ -71,16 +71,26 @@ Widget _host({
   required EnvasesOperations operations,
   VoidCallback? onCompleted,
   EnvasesFormDraftPort? draftPort,
+  double pendientes = 8,
 }) => FluentApp(
   theme: OrbiFluentTheme.light,
   home: EnvasesRecibirForm(
     row: _row(),
-    lineasLoader: () async => [_linea()],
+    lineasLoader: () async => [_linea(pendientes: pendientes)],
     operations: operations,
     onCompleted: onCompleted,
     draftPort: draftPort,
   ),
 );
+
+/// `NumberBox` (a diferencia del `TextBox` que reemplaza) sólo actualiza su
+/// `value` cuando pierde el foco o recibe una acción de envío — nunca en
+/// cada tecla — así que cada prueba que teclea una cantidad tiene que cerrar
+/// la edición explícitamente para que el `onChanged` del formulario corra.
+Future<void> _commitNumberBox(WidgetTester tester) async {
+  await tester.testTextInput.receiveAction(TextInputAction.done);
+  await tester.pump();
+}
 
 void main() {
   testWidgets('defaults llegaron to pendientes and enables saving', (tester) async {
@@ -88,7 +98,7 @@ void main() {
     await tester.pumpWidget(_host(operations: operations));
     await tester.pumpAndSettle();
 
-    expect(tester.widget<TextBox>(find.byKey(const Key('envases-recibir-llegaron-1'))).controller!.text, '8');
+    expect(tester.widget<NumberBox<double>>(find.byKey(const Key('envases-recibir-llegaron-1'))).value, 8);
     final guardar = tester.widget<FilledButton>(find.byKey(const Key('envases-recibir-guardar')));
     expect(guardar.onPressed, isNotNull);
   });
@@ -99,7 +109,9 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.enterText(find.byKey(const Key('envases-recibir-llegaron-1')), '4');
+    await _commitNumberBox(tester);
     await tester.enterText(find.byKey(const Key('envases-recibir-danadas-1')), '5');
+    await _commitNumberBox(tester);
     await tester.pumpAndSettle();
 
     expect(find.text('Las dañadas no pueden ser más de lo que llegó.'), findsOneWidget);
@@ -113,6 +125,7 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.enterText(find.byKey(const Key('envases-recibir-llegaron-1')), '9');
+    await _commitNumberBox(tester);
     await tester.pumpAndSettle();
 
     expect(find.text('No puede llegar más de lo que salió.'), findsOneWidget);
@@ -124,6 +137,7 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.enterText(find.byKey(const Key('envases-recibir-danadas-1')), '-1');
+    await _commitNumberBox(tester);
     await tester.pumpAndSettle();
 
     expect(find.text('No puede ser negativo.'), findsOneWidget);
@@ -136,7 +150,9 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.enterText(find.byKey(const Key('envases-recibir-llegaron-1')), '6');
+    await _commitNumberBox(tester);
     await tester.enterText(find.byKey(const Key('envases-recibir-danadas-1')), '1');
+    await _commitNumberBox(tester);
     await tester.pumpAndSettle();
 
     await tester.tap(find.byKey(const Key('envases-recibir-guardar')));
@@ -164,8 +180,8 @@ void main() {
     await tester.pumpWidget(_host(operations: operations, draftPort: port));
     await tester.pumpAndSettle();
 
-    expect(tester.widget<TextBox>(find.byKey(const Key('envases-recibir-llegaron-1'))).controller!.text, '6');
-    expect(tester.widget<TextBox>(find.byKey(const Key('envases-recibir-danadas-1'))).controller!.text, '2');
+    expect(tester.widget<NumberBox<double>>(find.byKey(const Key('envases-recibir-llegaron-1'))).value, 6);
+    expect(tester.widget<NumberBox<double>>(find.byKey(const Key('envases-recibir-danadas-1'))).value, 2);
     expect(find.text('Recuperamos lo que estabas registrando.'), findsOneWidget);
   });
 
@@ -176,12 +192,43 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.enterText(find.byKey(const Key('envases-recibir-llegaron-1')), '6');
+    await _commitNumberBox(tester);
     await tester.enterText(find.byKey(const Key('envases-recibir-danadas-1')), '1');
+    await _commitNumberBox(tester);
     await tester.pumpAndSettle();
 
     await tester.tap(find.byKey(const Key('envases-recibir-guardar')));
     await tester.pumpAndSettle();
 
     expect(port.cleared, contains(envasesRecepcionDraftId(11)));
+  });
+
+  testWidgets('receive table computes apt and pending and shows the differences notice', (tester) async {
+    tester.view.physicalSize = const Size(1920, 1080);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final operations = _FakeEnvasesOperations();
+    await tester.pumpWidget(_host(operations: operations, pendientes: 24));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byKey(const Key('envases-recibir-llegaron-1')), '23');
+    await _commitNumberBox(tester);
+    await tester.enterText(find.byKey(const Key('envases-recibir-danadas-1')), '1');
+    await _commitNumberBox(tester);
+    await tester.pumpAndSettle();
+
+    expect(find.text('22', findRichText: true), findsWidgets); // Aptos
+    final aptos = tester.widget<Text>(find.byKey(const Key('envases-recibir-aptos-1')));
+    expect(aptos.data, '22');
+    final pendiente = tester.widget<Text>(find.byKey(const Key('envases-recibir-pendiente-1')));
+    expect(pendiente.data, '1');
+
+    expect(find.byKey(const Key('envases-recibir-diferencias')), findsOneWidget);
+    expect(
+      find.textContaining('Existen diferencias: quedan 1 envases pendientes por recibir.'),
+      findsOneWidget,
+    );
   });
 }

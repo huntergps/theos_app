@@ -441,6 +441,7 @@ final class EnvasesRecibirRoute extends ConsumerWidget {
         operations: operations,
         draftPort: ref.watch(envasesFormDraftPortProvider),
         onCompleted: () => context.pop(),
+        onCancel: () => context.pop(),
       ),
     );
   }
@@ -775,6 +776,7 @@ class _EnvasesEnviarRouteState extends ConsumerState<EnvasesEnviarRoute> {
               operations: operations,
               draftPort: ref.watch(envasesFormDraftPortProvider),
               onCompleted: () => context.pop(),
+              onCancel: () => context.pop(),
             );
           },
         );
