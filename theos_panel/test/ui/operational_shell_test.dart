@@ -584,7 +584,15 @@ void main() {
     });
 
     testWidgets('en estrecho el pie se pide, y se puede abrir', (tester) async {
-      const size = Size(390, 844);
+      // 🔴 Tamaño cambiado de 390×844 (vertical) a 390×300 (horizontal) el
+      // 15-sep-2026: a 390×844 esto caía en el nuevo modo barra inferior
+      // (`OrbiTheme.fullPaneBreakpoint`), donde el pie estrecho ya NO se
+      // pide con un botón — se ve siempre, resumido, en la franja de estado
+      // (ver el grupo «la barra superior compacta (barra inferior)», prueba
+      // «la franja de estado se ve siempre, sin pedirse»). Esta prueba
+      // comprueba el diálogo de [_compactContextButton], que sigue existiendo
+      // para ANGOSTO-pero-horizontal, así que se mueve ahí.
+      const size = Size(390, 300);
       await _pump(tester, _host(size), size);
 
       expect(find.text('erp.test'), findsNothing);
@@ -1068,7 +1076,15 @@ void main() {
       'a 390 (bajo el corte) los textos se esconden, pero los íconos '
       'siguen ahí',
       (tester) async {
-        const size = Size(390, 900);
+        // 🔴 Altura cambiada de 900 a 300 el 15-sep-2026: a 390×900 (vertical)
+        // esto caía en el nuevo modo barra inferior
+        // (`OrbiTheme.fullPaneBreakpoint`), que sustituye TODO este
+        // `CommandBar` por [_bottomNavTopBar] — un `_topBar` distinto, con
+        // sus propias reglas (ver ese grupo de pruebas). Esta prueba no
+        // comprueba el modo barra inferior, comprueba el corte de
+        // `CommandBar(isCompact: ...)`, así que se mantiene en HORIZONTAL
+        // (390 ancho, 300 alto) para seguir ejercitando ese camino.
+        const size = Size(390, 300);
         await _pump(
           tester,
           _host(size, destinations: _richDestinations, onToggleTheme: () {}),
@@ -1211,12 +1227,19 @@ void main() {
     // abierto) atrapa un fotograma intermedio de esa animación —no un
     // defecto real, sino el mismo tipo de sobresalto transitorio que ya
     // documenta `pane_items.dart` de Fluent. Medido el 13-sep-2026.
+    //
+    // 🔴 Alto cambiado de 900 a 300 el 15-sep-2026: a 400×900 y 800×900
+    // (vertical) esto caía en el nuevo modo barra inferior
+    // (`OrbiTheme.fullPaneBreakpoint`), donde Actividades no tiene botón
+    // propio (ver el grupo «la barra superior compacta (barra inferior)» más
+    // abajo) — esta prueba comprueba el desbordamiento del `CommandBar`
+    // horizontal, así que se mantiene en HORIZONTAL para los tres anchos.
     for (final width in [400.0, 800.0, 1280.0]) {
       testWidgets(
         'a ${width.toInt()} px no desborda: las acciones se ven o están '
         'en el desbordamiento, nunca se cortan',
         (tester) async {
-          final size = Size(width, 900);
+          final size = Size(width, 300);
           await _pump(
             tester,
             _host(size, destinations: _richDestinations, onToggleTheme: () {}),

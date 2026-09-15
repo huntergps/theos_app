@@ -283,6 +283,28 @@ bool _isFooterDestination(OperationalDestination d) =>
 bool _isGroupedNavDestination(OperationalDestination d) =>
     !_isTopBarDestination(d) && !_isFooterDestination(d);
 
+/// Cuántos destinos —Inicio incluido— caben en la barra de navegación
+/// inferior, sin contar «Más» (que siempre se pinta aparte, como quinta
+/// pestaña). Fijado por la lámina aprobada (`round-02/ENV-01.png`, teléfono):
+/// Inicio, Inventario, Reportes, Más.
+const _kBottomNavMaxDestinations = 4;
+
+/// Alto de la barra de navegación inferior. Sobra sobre el mínimo táctil de
+/// 44px lógicos (ver [_kMinTouchTarget]) para dejar sitio al ícono, la
+/// etiqueta y el respiro del «+» flotante que se superpone por encima.
+const _kBottomNavHeight = 64.0;
+
+/// Lado del botón «+» flotante de la barra inferior.
+const _kPrimaryActionSize = 52.0;
+
+/// Área táctil mínima de cada pestaña de la barra inferior — el estándar de
+/// 44pt lógicos de las guías de accesibilidad de iOS. No existe hoy una
+/// constante compartida en el repo con este valor exacto:
+/// `pin_login_screen.dart` fija su propio `_kCompactKeySize` en 48, pero para
+/// las teclas de su teclado numérico, un control distinto. Se fija aquí,
+/// local a la barra inferior.
+const _kMinTouchTarget = 44.0;
+
 /// El marco sobre el que se muestra toda la aplicación.
 ///
 /// 🔴 **Es `NavigationView` de Fluent, no un andamiaje propio.** Antes esta
@@ -325,6 +347,7 @@ final class OperationalShell extends StatefulWidget {
     this.onPresenceChanged,
     this.onOpenPreferences,
     this.onDismissDatabaseReplacedNotice,
+    this.primaryActionPath,
   }) : assert(
          onLock == null || onUnlock != null,
          'onUnlock is required whenever onLock is provided: a shell that '
@@ -436,6 +459,17 @@ final class OperationalShell extends StatefulWidget {
   /// `router.dart` siempre da con qué cerrarlo.
   final VoidCallback? onDismissDatabaseReplacedNotice;
 
+  /// La ruta a la que lleva el botón «+» flotante de la barra de navegación
+  /// inferior (sólo existe en modo vertical angosto, ver
+  /// [OrbiTheme.fullPaneBreakpoint]). `null` cuando la pantalla actual no
+  /// declara una acción principal —o quien la pidió no tiene el permiso—:
+  /// sin botón, nunca uno que no responda. Quien instancia este marco
+  /// (`router.dart`) decide esto por ruta y por permiso, con la MISMA
+  /// política de acceso que ya usa para ofrecer «Enviar» en la pantalla; este
+  /// armazón no sabe nada de envases ni de ningún otro módulo — sólo pinta el
+  /// botón cuando le llega una ruta y llama a [onNavigate] con ella.
+  final String? primaryActionPath;
+
   /// 🔴 Aquí había seis colores escritos a mano: tres para el pie y tres para
   /// el estado. Ninguno se decide ya en este fichero. Orden del dueño del
   /// 12-sep-2026: *«no tocar nada del estilo de fluent_ui, sólo escoger los
@@ -455,6 +489,16 @@ class _OperationalShellState extends State<OperationalShell> {
   /// pulsa «Ver detalle» — colapsado por omisión para no abrumar el aviso
   /// con una lista que puede tener hasta 20 líneas.
   bool _showDatabaseReplacedDetail = false;
+
+  /// Referencia al `NavigationView` para abrir su panel mínimo desde FUERA de
+  /// su propio árbol — en modo barra inferior el botón de menú y «Más» viven
+  /// en la barra superior compacta y en la barra inferior respectivamente,
+  /// ambas HERMANAS de `NavigationView` dentro de la misma `Column` (ver
+  /// [_scaffold]), no descendientes suyas. `NavigationView.of(context)`
+  /// exige un `context` descendiente (`findAncestorStateOfType`), así que
+  /// desde una hermana no sirve — de ahí esta `GlobalKey`, el mismo mecanismo
+  /// que ya documenta `NavigationView.of`.
+  final _navigationViewKey = GlobalKey<NavigationViewState>();
 
   @override
   Widget build(BuildContext buildContext) {
@@ -502,7 +546,23 @@ class _OperationalShellState extends State<OperationalShell> {
 
   Widget _scaffold(BuildContext buildContext) => LayoutBuilder(
     builder: (layoutContext, constraints) {
+      // Orden del dueño, 15-sep-2026, comparando con las láminas aprobadas
+      // (`round-02/ENV-01.png`, `round-03/SHELL-01.png`): en VERTICAL, por
+      // debajo del ancho al que Fluent abriría su propio panel completo
+      // (`OrbiTheme.fullPaneBreakpoint`), el armazón usa una barra de
+      // navegación inferior en vez del carril lateral. En horizontal —
+      // 1366×1024 y 1920×1080 en las láminas— queda EXACTAMENTE como antes.
+      //
+      // Sólo cuando el modo del carril sigue en `auto`: una preferencia fija
+      // de Ajustes (`compact`, `expanded`, `top`…) la eligió la persona a
+      // propósito y este armazón no la pisa por orientación.
+      final isPortrait = constraints.maxHeight > constraints.maxWidth;
+      final bottomNavMode =
+          widget.navigationDisplayMode == PaneDisplayMode.auto &&
+          isPortrait &&
+          constraints.maxWidth < OrbiTheme.fullPaneBreakpoint;
       final wideFooter =
+          !bottomNavMode &&
           constraints.maxWidth >= 600 &&
           constraints.maxWidth >= constraints.maxHeight;
       // Base opaca de todo el armazón. Sin esto, cualquier tramo del marco
@@ -513,7 +573,10 @@ class _OperationalShellState extends State<OperationalShell> {
         color: FluentTheme.of(layoutContext).micaBackgroundColor,
         child: Column(
           children: [
-            _topBar(layoutContext, constraints.maxWidth),
+            if (bottomNavMode)
+              _bottomNavTopBar(layoutContext)
+            else
+              _topBar(layoutContext, constraints.maxWidth),
             // Persistente mientras dure el almacenamiento volátil — no es un
             // aviso transitorio (`showCopyableMessage`) porque el riesgo no
             // desaparece a los pocos segundos, sigue mientras la pestaña
@@ -600,16 +663,25 @@ class _OperationalShellState extends State<OperationalShell> {
               ),
             Expanded(
               child: NavigationView(
-                pane: _pane(),
+                key: _navigationViewKey,
+                pane: _pane(
+                  forcedDisplayMode: bottomNavMode
+                      ? PaneDisplayMode.minimal
+                      : null,
+                ),
                 // En modo estrecho el contenido llega con su propia barra: sin
                 // ella no hay NINGUNA forma de abrir el menú (ver
                 // [_minimalTopBar]).
                 // El modo lo decide Fluent (`PaneDisplayMode.auto`); aquí sólo se
-                // lee el que eligió.
+                // lee el que eligió. En modo barra inferior el botón de menú ya
+                // vive en [_bottomNavTopBar] —hermana de `NavigationView», no
+                // descendiente—, así que aquí no se repite: pintar los dos
+                // duplicaría el botón «Menú» en pantalla.
                 paneBodyBuilder: (item, _) => Builder(
                   builder: (context) =>
-                      NavigationView.of(context).displayMode ==
-                          PaneDisplayMode.minimal
+                      !bottomNavMode &&
+                          NavigationView.of(context).displayMode ==
+                              PaneDisplayMode.minimal
                       ? Column(
                           children: [
                             _minimalTopBar(),
@@ -620,7 +692,10 @@ class _OperationalShellState extends State<OperationalShell> {
                 ),
               ),
             ),
-            if (wideFooter)
+            if (bottomNavMode) ...[
+              _bottomNavigationBar(layoutContext),
+              _bottomStatusStrip(layoutContext),
+            ] else if (wideFooter)
               _contextFooter(layoutContext)
             else
               _compactContextButton(layoutContext),
@@ -903,6 +978,227 @@ class _OperationalShellState extends State<OperationalShell> {
     },
   );
 
+  /// La barra superior del modo barra inferior (vertical angosto): botón de
+  /// menú, marca de Orbi, campana de avisos con su contador y el avatar —
+  /// exactamente los cuatro elementos de las láminas aprobadas
+  /// (`round-02/ENV-01.png`, `round-03/SHELL-01.png`), en vez del
+  /// `CommandBar` completo de [_topBar].
+  ///
+  /// 🔴 Lo que NO lleva, a propósito: Modo Ruta, pendientes de enviar,
+  /// ambiente, caja abierta, pendientes SRI, Actividades y el botón de
+  /// tema. Ninguna lámina los muestra en este modo, y no hay sitio para
+  /// nueve píldoras en 48px de alto. Quedan alcanzables desde «Más» (el
+  /// panel completo) salvo Actividades, que —igual que Avisos— nunca vivió
+  /// en el panel lateral (ver [_isTopBarDestination]): en modo barra
+  /// inferior no tiene otro punto de entrada. Es una pérdida real de
+  /// alcance, no una omisión accidental — señalada en el encargo para que
+  /// el dueño decida si Actividades necesita su propio hueco aquí.
+  ///
+  /// Va como hermana de `NavigationView` (igual que [_topBar]): el botón de
+  /// menú usa [_navigationViewKey] en vez de `NavigationView.of(context)`
+  /// porque este widget no es descendiente suyo.
+  Widget _bottomNavTopBar(BuildContext context) {
+    final theme = FluentTheme.of(context);
+    final ctx = widget.context;
+    final hasNotices = widget.destinations.any((d) => d.path == _kNoticesPath);
+    return Container(
+      key: const Key('shell-bottom-nav-top-bar'),
+      height: 48,
+      padding: const EdgeInsetsDirectional.only(start: 4, end: 12),
+      decoration: BoxDecoration(
+        color: theme.micaBackgroundColor,
+        border: Border(
+          bottom: BorderSide(color: theme.resources.dividerStrokeColorDefault),
+        ),
+      ),
+      child: Row(
+        children: [
+          Tooltip(
+            message: 'Menú',
+            child: IconButton(
+              key: const Key('operational-menu-button'),
+              icon: const Icon(FluentIcons.global_nav_button),
+              onPressed: () =>
+                  _navigationViewKey.currentState?.isMinimalPaneOpen = true,
+            ),
+          ),
+          const SizedBox(width: 4),
+          OrbiBrand(height: 20),
+          const Spacer(),
+          if (hasNotices)
+            Tooltip(
+              message: 'Avisos',
+              child: IconButton(
+                key: const Key('shell-notices-button'),
+                icon: _badgedIcon(FluentIcons.ringer, ctx.noticesUnreadCount),
+                onPressed: () => widget.onNavigate(_kNoticesPath),
+              ),
+            ),
+          const SizedBox(width: 4),
+          _UserAvatarMenu(
+            userLabel: ctx.userLabel,
+            companyLabel: ctx.companyLabel,
+            wide: false,
+            useAccentColor: true,
+            onOpenPreferences:
+                widget.onOpenPreferences ??
+                () => widget.onNavigate(_kSettingsPath),
+            onLock: widget.onLock,
+            onSwitchUser: widget.onSwitchUser,
+            onLogout: widget.onLogout,
+            presence: widget.presence,
+            onPresenceChanged: widget.onPresenceChanged,
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Los destinos del menú principal (sin Actividades/Avisos, que van a la
+  /// barra superior, ni Sincronización/Configuración, que van al pie del
+  /// panel), aplanados en el MISMO orden que arma [_pane]: primero el grupo
+  /// «Workspace» (Inicio), luego el resto de grupos en su orden de llegada.
+  List<OperationalDestination> _flatOrderedNavDestinations() {
+    final navDestinations = widget.destinations
+        .where(_isGroupedNavDestination)
+        .toList(growable: false);
+    final grouped = _groupedDestinations(navDestinations);
+    return [for (final entry in grouped.entries) ...entry.value];
+  }
+
+  /// Los destinos que se pintan en la barra de navegación inferior: «Inicio»
+  /// primero y hasta [_kBottomNavMaxDestinations] en total, en el mismo
+  /// orden que el menú principal.
+  ///
+  /// Si la ruta actual quedó fuera de ese primer grupo, ocupa el último
+  /// puesto — la pantalla que se está viendo siempre tiene que verse
+  /// marcada, aunque eso signifique desplazar a la que estuviera ahí.
+  List<OperationalDestination> _bottomBarDestinations() {
+    final flat = _flatOrderedNavDestinations();
+    if (flat.isEmpty) return const [];
+    final slots = flat.take(_kBottomNavMaxDestinations).toList();
+    final currentIncluded = slots.any((d) => d.path == widget.selectedPath);
+    if (!currentIncluded) {
+      OperationalDestination? current;
+      for (final destination in flat) {
+        if (destination.path == widget.selectedPath) {
+          current = destination;
+          break;
+        }
+      }
+      if (current != null) {
+        if (slots.length >= _kBottomNavMaxDestinations) {
+          slots[_kBottomNavMaxDestinations - 1] = current;
+        } else {
+          slots.add(current);
+        }
+      }
+    }
+    return slots;
+  }
+
+  /// La barra de navegación inferior: hasta cuatro destinos más «Más» (que
+  /// abre el panel completo, con [_navigationViewKey] por el mismo motivo
+  /// que [_bottomNavTopBar]), y el botón «+» flotante cuando la pantalla
+  /// actual declara una acción principal
+  /// ([OperationalShell.primaryActionPath]).
+  Widget _bottomNavigationBar(BuildContext context) {
+    final theme = FluentTheme.of(context);
+    final r = theme.resources;
+    final tabs = _bottomBarDestinations();
+    final primaryActionPath = widget.primaryActionPath;
+    return Container(
+      key: const Key('shell-bottom-nav-bar'),
+      height: _kBottomNavHeight,
+      clipBehavior: Clip.none,
+      decoration: BoxDecoration(
+        color: theme.micaBackgroundColor,
+        border: Border(top: BorderSide(color: r.dividerStrokeColorDefault)),
+      ),
+      child: Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.topCenter,
+        children: [
+          Row(
+            children: [
+              for (final destination in tabs)
+                Expanded(
+                  child: _BottomNavTab(
+                    key: Key('shell-bottom-nav-tab-${destination.path}'),
+                    icon: destination.icon,
+                    label: destination.label,
+                    selected: destination.path == widget.selectedPath,
+                    onTap: () => widget.onNavigate(destination.path),
+                  ),
+                ),
+              Expanded(
+                child: _BottomNavTab(
+                  key: const Key('shell-bottom-nav-more'),
+                  icon: FluentIcons.more,
+                  label: 'Más',
+                  // «Más» nunca se marca como el destino activo: sólo abre el
+                  // panel, no navega a ninguna pantalla propia.
+                  selected: false,
+                  onTap: () =>
+                      _navigationViewKey.currentState?.isMinimalPaneOpen =
+                          true,
+                ),
+              ),
+            ],
+          ),
+          if (primaryActionPath != null)
+            Positioned(
+              top: -(_kPrimaryActionSize / 2),
+              child: _BottomNavPrimaryActionButton(
+                key: const Key('shell-bottom-nav-primary-action'),
+                onPressed: () => widget.onNavigate(primaryActionPath),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// La franja fina de estado, debajo de la barra inferior (láminas
+  /// `round-03/SHELL-01.png`): el mismo texto y color que hoy pintan
+  /// [_ConnectivityPill] y el pie ancho ([_contextFooter]) — nunca un estado
+  /// nuevo inventado aquí, sólo una presentación más compacta.
+  Widget _bottomStatusStrip(BuildContext context) {
+    final theme = FluentTheme.of(context);
+    final r = theme.resources;
+    return ColoredBox(
+      key: const Key('shell-bottom-status-strip'),
+      color: r.solidBackgroundFillColorTertiary,
+      child: SizedBox(
+        width: double.infinity,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          child: DefaultTextStyle(
+            style: theme.typography.caption ?? const TextStyle(),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _statusDot(_connectionColor(r)),
+                const SizedBox(width: 6),
+                Text(_connectionText()),
+                _footerGap(r),
+                Icon(FluentIcons.ringer, size: 14, color: r.textFillColorSecondary),
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Text(
+                    widget.context.syncLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   /// La cabecera del panel: sólo la marca.
   ///
   /// Va en `NavigationPane.header` y no en una fila propia por encima de todo.
@@ -939,7 +1235,15 @@ class _OperationalShellState extends State<OperationalShell> {
   /// `footerItems` de Fluent (orden del dueño, 13-sep-2026). Y el grupo
   /// «Workspace» —hoy sólo «Inicio»— se pinta de primer nivel, sin el
   /// desplegable de un solo hijo que tenía antes.
-  NavigationPane _pane() {
+  ///
+  /// [forcedDisplayMode] es la excepción del modo barra inferior
+  /// ([_scaffold]): mientras esa barra sustituye al carril, el panel de
+  /// Fluent tiene que quedarse en `minimal` (escondido, alcanzable sólo por
+  /// «Menú» o «Más») aunque el ancho por sí solo —1024 en un iPad vertical,
+  /// por ejemplo— ya baste para que `PaneDisplayMode.auto` abriera el carril
+  /// con etiquetas. `null` dilata a [OperationalShell.navigationDisplayMode],
+  /// el comportamiento de siempre.
+  NavigationPane _pane({PaneDisplayMode? forcedDisplayMode}) {
     final navDestinations = widget.destinations
         .where(_isGroupedNavDestination)
         .toList(growable: false);
@@ -987,7 +1291,7 @@ class _OperationalShellState extends State<OperationalShell> {
       // 13-sep-2026). El modo en sí ya es parametrizable desde Ajustes —quien
       // instancia este marco decide si en vez de `auto` se fija `expanded`,
       // `compact`, `minimal` o `top`.
-      displayMode: widget.navigationDisplayMode,
+      displayMode: forcedDisplayMode ?? widget.navigationDisplayMode,
       indicator: widget.navigationIndicator,
       selected: selectedIndex < 0 ? null : selectedIndex,
       header: _paneHeader(),
@@ -1512,6 +1816,102 @@ class _InfoPill extends StatelessWidget {
   }
 }
 
+/// Una pestaña de la barra de navegación inferior ([_bottomNavigationBar]):
+/// ícono y etiqueta, en color de acento cuando es la pantalla que se está
+/// viendo y en el color secundario del tema en las demás — el mismo
+/// contraste que pide la lámina aprobada, nunca un color a mano.
+class _BottomNavTab extends StatelessWidget {
+  const _BottomNavTab({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FluentTheme.of(context);
+    final color = selected
+        ? theme.accentColor.normal
+        : theme.resources.textFillColorSecondary;
+    final caption = theme.typography.caption ?? const TextStyle();
+    return Semantics(
+      label: label,
+      selected: selected,
+      button: true,
+      child: Tooltip(
+        message: label,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(
+              minWidth: _kMinTouchTarget,
+              minHeight: _kMinTouchTarget,
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, color: color, size: 22),
+                const SizedBox(height: 2),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: caption.copyWith(
+                    color: color,
+                    fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// El botón «+» flotante de la barra inferior — sólo cuando la pantalla
+/// actual declara una acción principal
+/// ([OperationalShell.primaryActionPath]). Fluent no trae un botón circular
+/// hecho: es un [FilledButton] normal con forma de círculo puesta por
+/// [ButtonStyle.shape], el mecanismo de extensión propio de Fluent, no un
+/// widget aparte pintado a mano.
+class _BottomNavPrimaryActionButton extends StatelessWidget {
+  const _BottomNavPrimaryActionButton({super.key, required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    label: 'Nuevo',
+    button: true,
+    child: Tooltip(
+      message: 'Nuevo',
+      child: SizedBox(
+        width: _kPrimaryActionSize,
+        height: _kPrimaryActionSize,
+        child: FilledButton(
+          style: const ButtonStyle(
+            shape: WidgetStatePropertyAll(CircleBorder()),
+            padding: WidgetStatePropertyAll(EdgeInsets.zero),
+          ),
+          onPressed: onPressed,
+          child: const Icon(FluentIcons.add, size: 22),
+        ),
+      ),
+    ),
+  );
+}
+
 /// El avatar y su menú, en la barra superior.
 ///
 /// Junta lo que antes estaba repartido: el rótulo de usuario que vivía suelto
@@ -1537,6 +1937,7 @@ class _UserAvatarMenu extends StatefulWidget {
     this.onSwitchUser,
     this.presence,
     this.onPresenceChanged,
+    this.useAccentColor = false,
   });
 
   final String userLabel;
@@ -1546,6 +1947,13 @@ class _UserAvatarMenu extends StatefulWidget {
   /// calculado por [OperationalShell._topBar] a partir del ancho de layout
   /// (ver la nota allí sobre por qué no se usa `MediaQuery.sizeOf` aquí).
   final bool wide;
+
+  /// `true` en [OperationalShell._bottomNavTopBar]: la lámina aprobada
+  /// (`round-02/ENV-01.png`) pinta ahí el avatar como un círculo con el
+  /// color de acento del tema, no con el tono aleatorio por usuario que sí
+  /// usa la barra ancha ([_initialsColor]) — un color coordinado con el
+  /// resto del acento de la marca, en vez de uno que cambia por persona.
+  final bool useAccentColor;
   final VoidCallback onOpenPreferences;
   final VoidCallback onLogout;
   final VoidCallback? onLock;
@@ -1657,10 +2065,15 @@ class _UserAvatarMenuState extends State<_UserAvatarMenu> {
                 Container(
                   width: 32,
                   height: 32,
-                  decoration: BoxDecoration(
-                    color: _initialsColor(widget.userLabel),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
+                  decoration: widget.useAccentColor
+                      ? BoxDecoration(
+                          color: FluentTheme.of(context).accentColor.normal,
+                          shape: BoxShape.circle,
+                        )
+                      : BoxDecoration(
+                          color: _initialsColor(widget.userLabel),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
                   alignment: Alignment.center,
                   child: Text(
                     initial,

@@ -17,6 +17,18 @@ abstract final class OrbiTheme {
   static const compactBreakpoint = 600.0;
   static const mediumBreakpoint = 840.0;
 
+  /// El ancho a partir del cual `PaneDisplayMode.auto` de Fluent abre el
+  /// panel completo con etiquetas —
+  /// `NavigationViewState._resolveDisplayMode`
+  /// (`fluent_ui-4.16.1/lib/src/controls/navigation/navigation_view/view.dart:543`,
+  /// `else if (width >= 1008) { autoDisplayMode = PaneDisplayMode.expanded; }`).
+  /// `OperationalShell` reutiliza este mismo número como su propio corte: en
+  /// VERTICAL (alto > ancho), por debajo de este ancho, fuerza una barra de
+  /// navegación inferior en vez de esperar a que Fluent abra el panel
+  /// completo con etiquetas — orden del dueño, 15-sep-2026, comparando con
+  /// las láminas aprobadas (`round-02/ENV-01.png`, `round-03/SHELL-01.png`).
+  static const fullPaneBreakpoint = 1008.0;
+
   static const space4 = 4.0;
   static const space8 = 8.0;
   static const space12 = 12.0;

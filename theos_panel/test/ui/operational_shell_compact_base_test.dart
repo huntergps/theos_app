@@ -58,9 +58,18 @@ Widget _host(Size size) => FluentApp(
 );
 
 void main() {
+  // 🔴 Actualizada el 15-sep-2026: a 390×844 (VERTICAL), el pie ya no es
+  // `_compactContextButton` (el `Align` sin fondo propio que causaba el
+  // hueco original) — cae en el nuevo modo barra inferior
+  // (`OrbiTheme.fullPaneBreakpoint`), donde el último hijo de la `Column` es
+  // la franja de estado ([_bottomStatusStrip]), que SIEMPRE se pinta dentro
+  // de su propio `ColoredBox` opaco. El riesgo que esta prueba vigilaba
+  // (una franja sin fondo dejando ver la página HTML de detrás) se
+  // comprueba ahora contra esa franja, que es hoy el último elemento
+  // vertical del armazón en este ancho.
   testWidgets(
-    'a 390×844 en tema oscuro el pie compacto pinta una base opaca hasta el '
-    'borde del armazón, sin hueco hacia la página HTML',
+    'a 390×844 en tema oscuro la franja de estado pinta una base opaca '
+    'hasta el borde del armazón, sin hueco hacia la página HTML',
     (tester) async {
       const size = Size(390, 844);
       await tester.binding.setSurfaceSize(size);
@@ -68,58 +77,20 @@ void main() {
       await tester.pumpWidget(_host(size));
       await tester.pumpAndSettle();
 
-      final boton = find.byKey(const Key('operational-context-button'));
-      expect(boton, findsOneWidget);
+      final strip = find.byKey(const Key('shell-bottom-status-strip'));
+      expect(strip, findsOneWidget);
 
-      // Todos los `ColoredBox` que son ancestros del botón, sea cual sea su
-      // origen (los de `FluentApp`/`MediaQuery` incluidos).
-      final buttonAncestors = find
-          .ancestor(of: boton, matching: find.byType(ColoredBox))
-          .evaluate()
-          .toList();
-
-      // Los `ColoredBox` que son ancestros del propio `OperationalShell`
-      // (fuera del armazón: andamiaje de `FluentApp`, no de este widget).
-      final outsideShell = find
-          .ancestor(
-            of: find.byType(OperationalShell),
-            matching: find.byType(ColoredBox),
-          )
-          .evaluate()
-          .toSet();
-
-      // Lo que queda es, por descarte, lo que hay ENTRE el botón y
-      // `OperationalShell`: el armazón propio. El orden de `find.ancestor`
-      // va del más cercano al más lejano, así que el último es el más
-      // externo dentro del armazón.
-      final insideShell = buttonAncestors
-          .where((element) => !outsideShell.contains(element))
-          .map((element) => element.widget as ColoredBox)
-          .toList();
-
+      // La propia franja es un `ColoredBox`: se comprueba directamente que
+      // sea opaca, sin necesidad de subir por sus ancestros — a diferencia
+      // del viejo `_compactContextButton` (un `IconButton` sin fondo
+      // propio), este widget SÍ pinta el suyo.
+      final box = tester.widget<ColoredBox>(strip);
       expect(
-        insideShell,
-        isNotEmpty,
-        reason:
-            'ningún ancestro del botón compacto, dentro del armazón, pinta '
-            'un ColoredBox: la franja queda sin fondo propio',
-      );
-
-      expect(
-        insideShell.any((box) => box.color.a == 1.0),
-        isTrue,
-        reason:
-            'ningún ColoredBox del armazón, entre el botón y '
-            'OperationalShell, es opaco',
-      );
-
-      final outermost = insideShell.last;
-      expect(
-        outermost.color.a,
+        box.color.a,
         1.0,
         reason:
-            'el ColoredBox más externo del armazón (el que debe envolver '
-            'toda la Column de _scaffold) tiene que ser opaco',
+            'la franja de estado del pie tiene que pintar un fondo opaco, '
+            'igual que antes lo exigía el pie compacto',
       );
     },
   );
