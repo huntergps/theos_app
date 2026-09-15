@@ -69,13 +69,37 @@ final class SessionRuntime {
 
   final StreamController<OdooDatabaseReplaced> _databaseReplacements =
       StreamController<OdooDatabaseReplaced>.broadcast();
+  OdooDatabaseReplaced? _pendingDatabaseReplacement;
 
   /// Se publica cuando `activate()` detecta que la base de Odoo de este
   /// scope se reinstaló o se reemplazó, DESPUÉS de haber borrado los datos
   /// locales que le correspondían. Sin UI aquí (ADR-01) — quien la escuche
   /// decide cómo avisarlo.
+  ///
+  /// 🔴 En la vida real esto pasa DURANTE `activate()`, casi siempre antes
+  /// de que exista ningún oyente (el armazón todavía no se construyó) — un
+  /// `StreamController.broadcast()` sin suscriptores en ese momento pierde
+  /// el evento para siempre. [pendingDatabaseReplacement] es el respaldo:
+  /// guarda el ÚLTIMO reemplazo sin reconocer para que quien se suscriba
+  /// después (`_DatabaseReplacedNoticeNotifier`, `theos_panel/app/router.dart`)
+  /// lo pueda leer en su primer `build()`, no sólo escuchando hacia
+  /// adelante.
   Stream<OdooDatabaseReplaced> get databaseReplacements =>
       _databaseReplacements.stream;
+
+  /// El último reemplazo de base sin reconocer, o `null` si no hay ninguno
+  /// pendiente. Quien lo muestre debe compararlo contra el scope activo
+  /// (`active?.scope`) antes de pintarlo: un reemplazo de OTRO scope (otro
+  /// usuario, otro servidor) no es de esta sesión.
+  OdooDatabaseReplaced? get pendingDatabaseReplacement =>
+      _pendingDatabaseReplacement;
+
+  /// Marca el reemplazo pendiente como visto — se llama al cerrar a mano el
+  /// aviso. Sin esto, [pendingDatabaseReplacement] seguiría devolviendo el
+  /// mismo evento para siempre.
+  void acknowledgeDatabaseReplacement() {
+    _pendingDatabaseReplacement = null;
+  }
 
   SessionActivation? get active => _active;
 
@@ -301,7 +325,9 @@ final class SessionRuntime {
 
   /// Cuenta y describe lo que se va a perder ANTES de borrarlo, borra TODAS
   /// las tablas de esta base local en una sola transacción, guarda la huella
-  /// nueva y publica [OdooDatabaseReplaced].
+  /// nueva y publica [OdooDatabaseReplaced] — tanto por el stream (quien ya
+  /// esté escuchando) como en [pendingDatabaseReplacement] (quien se
+  /// suscriba después, ver esa doc).
   Future<void> _wipeAndPublishReplacement({
     required AppScope scope,
     required AppDatabase database,
@@ -342,14 +368,14 @@ final class SessionRuntime {
       );
     });
 
+    final event = OdooDatabaseReplaced(
+      scope: scope,
+      discardedOperations: discardedOperations,
+      operationsSummary: operationsSummary,
+    );
+    _pendingDatabaseReplacement = event;
     if (!_databaseReplacements.isClosed) {
-      _databaseReplacements.add(
-        OdooDatabaseReplaced(
-          scope: scope,
-          discardedOperations: discardedOperations,
-          operationsSummary: operationsSummary,
-        ),
-      );
+      _databaseReplacements.add(event);
     }
   }
 

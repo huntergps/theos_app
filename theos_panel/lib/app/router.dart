@@ -1270,16 +1270,25 @@ final sessionExpiredSignalProvider = Provider<bool>((ref) {
 });
 // --- Fin del bloque aislado ------------------------------------------------
 
-// --- Bloque aislado: huella de la base de Odoo (14-sep-2026) ---------------
+// --- Bloque aislado: huella de la base de Odoo (14/15-sep-2026) ------------
 // `SessionRuntime.databaseReplacements` (`orbi_runtime`) avisa DESPUÉS de
 // haber borrado los datos locales de un scope cuya base de Odoo se reinstaló
 // o se reemplazó — sin UI en `orbi_runtime` (ADR-01). Este notifier sólo le
-// da forma persistente-hasta-que-se-cierre-a-mano a ese aviso puntual: el
-// stream emite una vez y `build()` no lo volvería a ver, así que se
-// suscribe una sola vez por `runtime` y guarda el último evento en `state`
-// hasta que `dismiss()` lo limpie (el cierre del `InfoBar` en
-// `OperationalShell`).
-final _databaseReplacedNoticeProvider =
+// da forma persistente-hasta-que-se-cierre-a-mano a ese aviso puntual.
+//
+// 🔴 Revisión del dueño, 15-sep-2026: el evento se publica DURANTE
+// `activate()` — al entrar o al restaurar, ANTES de que exista este
+// notifier (el armazón todavía no se construyó). Un `StreamController`
+// `broadcast()` sin suscriptores en ese momento pierde el evento para
+// siempre; el `listen` de aquí llegaba después. Por eso `build()` también
+// lee `runtime.pendingDatabaseReplacement` — el respaldo que
+// `SessionRuntime` conserva hasta que alguien lo reconoce — y no sólo
+// escucha hacia adelante.
+//
+// Un reemplazo de OTRO scope no se muestra en esta sesión: se compara
+// `notice.scope` contra `runtime.active?.scope` antes de aceptarlo, tanto al
+// leer lo pendiente como al escuchar el stream en vivo.
+final databaseReplacedNoticeProvider =
     NotifierProvider<_DatabaseReplacedNoticeNotifier, OdooDatabaseReplaced?>(
       _DatabaseReplacedNoticeNotifier.new,
     );
@@ -1295,12 +1304,21 @@ class _DatabaseReplacedNoticeNotifier extends Notifier<OdooDatabaseReplaced?> {
     _subscription = null;
     if (runtime == null) return null;
     _subscription = runtime.databaseReplacements.listen((notice) {
-      if (ref.mounted) state = notice;
+      if (ref.mounted && notice.scope == runtime.active?.scope) {
+        state = notice;
+      }
     });
+    final pending = runtime.pendingDatabaseReplacement;
+    if (pending != null && pending.scope == runtime.active?.scope) {
+      return pending;
+    }
     return null;
   }
 
-  void dismiss() => state = null;
+  void dismiss() {
+    ref.read(runtimeSessionProvider)?.acknowledgeDatabaseReplacement();
+    state = null;
+  }
 }
 // --- Fin del bloque aislado ------------------------------------------------
 
@@ -2598,7 +2616,7 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
                               .isNotEmpty,
                       sriPending: ref.watch(sriPendingProvider),
                       databaseReplacedNotice: ref.watch(
-                        _databaseReplacedNoticeProvider,
+                        databaseReplacedNoticeProvider,
                       ),
                     ),
                     onLogout: () async {
@@ -2662,7 +2680,7 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
                     onSwitchUser: () =>
                         confirmSwitchWorkspaceUser(context, ref),
                     onDismissDatabaseReplacedNotice: () => ref
-                        .read(_databaseReplacedNoticeProvider.notifier)
+                        .read(databaseReplacedNoticeProvider.notifier)
                         .dismiss(),
                     // `Builder` gives the denial toast a BuildContext that is
                     // actually a descendant of `OperationalShell`'s own
