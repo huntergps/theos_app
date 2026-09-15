@@ -14,6 +14,7 @@ import 'dart:async';
 import 'package:drift/native.dart';
 import 'package:drift/drift.dart' show Value, Variable;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:odoo_sdk/odoo_sdk.dart' show parseOdooDateTime;
 import 'package:orbi_runtime/orbi_runtime.dart';
 
 AppScope _scope(int userId) => AppScope(
@@ -70,7 +71,99 @@ Future<void> _seedOfflineQueueRow(AppDatabase database, DateTime createdAt) =>
           ),
         );
 
+/// `create_date` tal como lo manda Odoo de verdad: "YYYY-MM-DD HH:MM:SS" en
+/// UTC, SIN 'Z' ni offset — nunca `.toIso8601String()` (que sí lleva 'Z').
+String _odooRawUtc(DateTime utc) {
+  String two(int n) => n.toString().padLeft(2, '0');
+  return '${utc.year.toString().padLeft(4, '0')}-${two(utc.month)}-'
+      '${two(utc.day)} ${two(utc.hour)}:${two(utc.minute)}:${two(utc.second)}';
+}
+
 void main() {
+  // Revisión del dueño (15-sep-2026): `create_date` de Odoo llega SIN
+  // indicador de zona aunque ya está en UTC. `DateTime.tryParse(raw)?.toUtc()`
+  // (el código de `_looksLikeDataFromAReplacedDatabase` hasta el commit
+  // 9dd7b86) interpreta ese texto como hora LOCAL del proceso — en Guayaquil
+  // (UTC−5) el resultado queda 5 horas DESPUÉS del instante real. El arreglo
+  // usa `parseOdooDateTime` (`odoo_sdk/lib/src/utils/odoo_parsing_utils.dart`,
+  // ya usado por el resto de `orbi_runtime` para `write_date`), que normaliza
+  // el espacio a 'T' y añade 'Z' antes de parsear — nunca se creó un
+  // `parseOdooUtcDateTime` nuevo porque éste ya cumple el contrato pedido.
+  test('odoo create_date without zone is parsed as UTC', () {
+    const raw = '2026-09-14 20:10:00';
+    final parsed = parseOdooDateTime(raw);
+
+    expect(parsed, isNotNull);
+    expect(parsed!.isUtc, isTrue);
+    expect(parsed, DateTime.utc(2026, 9, 14, 20, 10));
+
+    // Hace explícita la diferencia con el código viejo: sólo se puede
+    // comprobar de verdad cuando el proceso NO corre en UTC (por eso esta
+    // suite se corre también con `TZ=America/Guayaquil` — ver el cierre de
+    // esta tarea). En un proceso que ya estuviera en UTC, `legacyBuggyParse`
+    // coincidiría con `parsed` por pura casualidad de la zona, no porque el
+    // código viejo estuviera bien — de ahí el `if`.
+    final legacyBuggyParse = DateTime.tryParse(raw)!.toUtc();
+    if (DateTime.now().timeZoneOffset != Duration.zero) {
+      expect(
+        legacyBuggyParse,
+        isNot(parsed),
+        reason:
+            'con la zona del proceso distinta de UTC, `DateTime.tryParse` '
+            'sin "Z" interpreta el texto como hora LOCAL y `.toUtc()` corre '
+            'el instante por el desfase — justo lo que corrige '
+            'parseOdooDateTime',
+      );
+    }
+  });
+
+  test(
+    'recent user with fresh local data is not wiped regardless of device zone',
+    () async {
+      // Sin huella guardada todavía. El usuario existe desde hace 2 horas
+      // (en UTC real); el dato local es de hace 30 minutos — perfectamente
+      // compatible con ese usuario, sin importar en qué zona horaria corra
+      // el proceso que evalúa la comparación.
+      final owner = RuntimeDatabaseOwner(
+        factory: (_) => AppDatabase(NativeDatabase.memory()),
+      );
+      final nowUtc = DateTime.now().toUtc();
+      final userCreatedAtUtc = nowUtc.subtract(const Duration(hours: 2));
+      final runtime = SessionRuntime(
+        databaseOwner: owner,
+        clientFactory: _harmlessClientFactory(),
+        identityReader: (client, scope) async =>
+            _odooRawUtc(userCreatedAtUtc),
+      );
+      final scope = _scope(1);
+
+      final opened = await owner.open(scope);
+      final database = opened.database;
+      await _seedOfflineQueueRow(
+        database,
+        nowUtc.subtract(const Duration(minutes: 30)),
+      );
+
+      final events = <OdooDatabaseReplaced>[];
+      runtime.databaseReplacements.listen(events.add);
+
+      await runtime.activate(scope, apiKey: 'key');
+      await Future<void>.delayed(Duration.zero);
+
+      expect(
+        await database.customSelect('SELECT * FROM offline_queue').get(),
+        hasLength(1),
+        reason:
+            'un dato de hace 30 minutos es compatible con un usuario que '
+            'existe desde hace 2 horas (en UTC real) — con el parseo viejo '
+            'y TZ=America/Guayaquil el usuario "nacía" 5 horas después, así '
+            'que este dato parecía anterior a él y se borraba sin motivo',
+      );
+      expect(events, isEmpty);
+
+      await runtime.close();
+    },
+  );
   test(
     'replaced odoo database wipes local data before activation',
     () async {

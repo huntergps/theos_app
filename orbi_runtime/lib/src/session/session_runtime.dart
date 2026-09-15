@@ -246,7 +246,16 @@ final class SessionRuntime {
     required AppDatabase database,
     required String userCreatedAt,
   }) async {
-    final createdAt = DateTime.tryParse(userCreatedAt)?.toUtc();
+    // `userCreatedAt` es el `create_date` crudo de Odoo: "YYYY-MM-DD HH:MM:SS"
+    // en UTC, SIN indicador de zona (revisión del dueño, 15-sep-2026).
+    // `DateTime.tryParse` sobre ese texto lo interpreta como hora LOCAL del
+    // equipo — en Guayaquil (UTC−5) quedaba 5 horas DESPUÉS de la real, lo
+    // que podía borrar datos de un usuario recién creado sin motivo (o, al
+    // este de UTC, dejar de detectar una base reemplazada). `parseOdooDateTime`
+    // (`odoo_sdk`, ya usado por el resto de `orbi_runtime` para `write_date`)
+    // normaliza el espacio a `T` y añade `Z` antes de parsear, así que
+    // siempre da un instante UTC correcto sin importar la zona del proceso.
+    final createdAt = parseOdooDateTime(userCreatedAt);
     if (createdAt == null) return false;
     final earliestLocal = await _earliestLocalWriteTimestamp(database);
     if (earliestLocal == null) return false;
