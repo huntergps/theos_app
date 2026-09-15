@@ -68,6 +68,16 @@ Color homeResumeStatusSolidBackground(
   HomeResumeStatus.error => theme.resources.systemFillColorCritical,
 };
 
+/// Razón de contraste WCAG entre dos colores, a partir de
+/// `Color.computeLuminance()` (relativa, ya la trae Flutter).
+double _contrastRatio(Color a, Color b) {
+  final la = a.computeLuminance();
+  final lb = b.computeLuminance();
+  final lighter = la > lb ? la : lb;
+  final darker = la > lb ? lb : la;
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
 /// Texto de contraste para [homeResumeStatusSolidBackground].
 ///
 /// 🔴 No usa el `textOnAccentFillColorPrimary` de `InfoBadge`
@@ -76,15 +86,25 @@ Color homeResumeStatusSolidBackground(
 /// `InfoBadge` empareja con «precaución»
 /// (`systemFillColorSolidAttentionBackground`) es un gris casi negro en ese
 /// mismo tema — negro sobre gris casi negro da un contraste de 1.5:1, muy
-/// por debajo del 4.5:1 mínimo. En vez de confiar en ese par fijo, el
-/// texto se calcula a partir de la LUMINANCIA real del fondo elegido — negro
-/// sobre un fondo claro, blanco sobre uno oscuro — así que sigue siendo
-/// correcto sin importar qué claro u oscuro resulte cada color en cada tema.
+/// por debajo del 4.5:1 mínimo.
+///
+/// 🔴 Tampoco basta con «negro si el fondo es claro, blanco si es oscuro»
+/// (`luminancia > 0.5`): medido el mismo día, un fondo rosado-crítico de
+/// luminancia ~0.49 quedaba justo debajo del corte y elegía blanco, con
+/// contraste 2.03 — muy por debajo del 4.5 mínimo, cuando negro sobre ESE
+/// MISMO fondo da más de 10:1. La fórmula `(L+0.05)/(l+0.05)` no es
+/// simétrica alrededor de 0.5 (el negro «gana» más terreno cerca del medio
+/// porque su propio 0.05 en el denominador es más chico), así que el criterio
+/// correcto es calcular el contraste REAL de las dos opciones contra el
+/// fondo y quedarse con la mayor — nunca adivinar por el lado de la
+/// luminancia.
 Color homeResumeStatusSolidForeground(
   FluentThemeData theme,
   HomeResumeStatus? status,
 ) {
   if (status == null) return theme.resources.textFillColorPrimary;
   final background = homeResumeStatusSolidBackground(theme, status);
-  return background.computeLuminance() > 0.5 ? Colors.black : Colors.white;
+  final blackContrast = _contrastRatio(Colors.black, background);
+  final whiteContrast = _contrastRatio(Colors.white, background);
+  return blackContrast >= whiteContrast ? Colors.black : Colors.white;
 }

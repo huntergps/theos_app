@@ -204,6 +204,12 @@ class _EnvasesSaldoTercerosScreenState
       child: OrbiListing<EnvasesPartnerBalanceRow>(
         rows: rows,
         storageKey: 'envases-saldo-terceros',
+        // La pantalla ya tiene su propia caja de filtro arriba (`_filters`),
+        // que filtra `rows` antes de que lleguen aquí — sin esto,
+        // `OrbiListing` pintaba una SEGUNDA caja («Buscar en la lista») sin
+        // ningún `onFilterChanged`, igual que medía `envases_por_recibir_
+        // screen.dart` el 14-sep-2026.
+        showFilterBox: false,
         onExport: widget.onExport == null
             ? null
             : (bytes, name) => widget.onExport!(context, bytes, name),
