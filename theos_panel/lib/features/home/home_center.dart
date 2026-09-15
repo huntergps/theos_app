@@ -212,12 +212,32 @@ class _HomeCenterViewState extends ConsumerState<HomeCenterView> {
         return LayoutBuilder(
           builder: (context, constraints) {
             final wide = constraints.maxWidth >= 1008;
+            // En teléfono (< 600) la lámina no repite la fila de cifras: la
+            // cuenta ya vive en el propio rótulo de la pestaña
+            // («Documentos a continuar (N)»). Con cuatro tarjetas apiladas
+            // ahí no cabían: cada una a 200 px de ancho fijo no dejaba sitio
+            // a una segunda por fila, y las cuatro juntas se comían la
+            // pantalla entera antes de llegar a las pestañas.
+            final showMetrics = constraints.maxWidth >= 600;
+            // Antes `Expanded(child: TabView(...))` llenaba TODO el alto
+            // sobrante del `ScaffoldPage`, así que las tarjetas por módulo
+            // quedaban pegadas al borde inferior de la ventana con un hueco
+            // enorme encima (orden del dueño, 15-sep-2026, viendo
+            // `inicio-completo-1920.png`). Una altura acotada —con su propio
+            // scroll y paginación, que `OrbiListing` ya trae— deja las
+            // tarjetas justo debajo de la tabla, como en la lámina.
+            final tabsHeight = constraints.maxHeight.isFinite
+                ? (constraints.maxHeight * 0.55).clamp(320.0, 560.0)
+                : 440.0;
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _metricsRow(context, capabilities, documentItems),
-                const SizedBox(height: 16),
-                Expanded(
+                if (showMetrics) ...[
+                  _metricsRow(context, capabilities, documentItems),
+                  const SizedBox(height: 16),
+                ],
+                SizedBox(
+                  height: tabsHeight,
                   child: TabView(
                     currentIndex: tabIndex,
                     onChanged: (index) => setState(() => _tabIndex = index),
@@ -225,7 +245,11 @@ class _HomeCenterViewState extends ConsumerState<HomeCenterView> {
                     // que el control nativo más cercano a las pestañas
                     // subrayadas de la lámina (`fluent_ui`
                     // `controls/navigation/tab_view/tab_view.dart`) se usa
-                    // sin su cruz de cerrar ni su botón «+».
+                    // sin su cruz de cerrar ni su botón «+». Por debajo de
+                    // 600 px no caben las tres etiquetas completas; el
+                    // propio `TabView` ya trae flechas de desplazamiento
+                    // horizontal (`showScrollButtons`, activas por
+                    // omisión) para llegar a la que no cabe.
                     closeButtonVisibility: CloseButtonVisibilityMode.never,
                     tabWidthBehavior: TabWidthBehavior.sizeToContent,
                     tabs: [
@@ -269,11 +293,15 @@ class _HomeCenterViewState extends ConsumerState<HomeCenterView> {
         showFilterBox: false,
         emptyMessage: 'No hay documentos por continuar',
         onRowTap: _resume,
+        cardBuilder: _documentCard,
         columns: [
           OrbiColumn<HomeResumeItem>(
             key: 'estado',
             label: 'Estado',
-            alwaysVisible: true,
+            // Documento, no Estado, identifica la fila: en tarjeta angosta
+            // genérica, `OrbiListing` usa la primera columna `alwaysVisible`
+            // como título, y «En proceso»/«Pendiente» como título repetido
+            // en varias filas leía mal.
             value: (item) => homeResumeStatusLabel(item.status),
             badgeColor: (item) => homeResumeStatusColor(theme, item.status),
           ),
@@ -311,6 +339,118 @@ class _HomeCenterViewState extends ConsumerState<HomeCenterView> {
       ),
     );
   }
+
+  /// Ficha compacta de teléfono para «Documentos a continuar» (ACC-03,
+  /// columna «Teléfono»): chip de estado + documento en negrita y el total
+  /// EN LA MISMA fila; debajo, la contraparte (u «Origen → Destino») y la
+  /// fecha en texto secundario con un chip pequeño de módulo; y una flecha a
+  /// la derecha que abre el documento (el toque de la tarjeta entera ya lo
+  /// hace `onRowTap`, la flecha es sólo la pista visual de la lámina). El
+  /// chip de estado usa fondo SÓLIDO + texto de contraste
+  /// (`homeResumeStatusSolid*`), no el tinte al 16 % del listado genérico:
+  /// ese tinte es justo lo que perdía contraste en tema oscuro.
+  Widget _documentCard(
+    BuildContext context,
+    HomeResumeItem item,
+    List<OrbiColumn<HomeResumeItem>> columns,
+    double width,
+  ) {
+    final theme = FluentTheme.of(context);
+    final hasTotal = (item.totalLabel ?? '').isNotEmpty;
+    final hasCounterpart = (item.counterpart ?? '').isNotEmpty;
+    final hasModule = (item.moduleLabel ?? '').isNotEmpty;
+    return Card(
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _statusPill(theme, item.status),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        item.title,
+                        style: theme.typography.bodyStrong,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (hasTotal) ...[
+                      const SizedBox(width: 8),
+                      Text(item.totalLabel!, style: theme.typography.bodyStrong),
+                    ],
+                  ],
+                ),
+                if (hasCounterpart || item.documentDate != null) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    [
+                      if (hasCounterpart) item.counterpart!,
+                      if (item.documentDate != null)
+                        _formatDocumentDate(item.documentDate!),
+                    ].join(' · '),
+                    style: theme.typography.caption?.copyWith(
+                      color: theme.inactiveColor,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+                if (hasModule) ...[
+                  const SizedBox(height: 6),
+                  _modulePill(theme, item.moduleLabel!),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Icon(
+              FluentIcons.chevron_right,
+              size: 14,
+              color: theme.resources.textFillColorSecondary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _statusPill(FluentThemeData theme, HomeResumeStatus? status) =>
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+        decoration: BoxDecoration(
+          color: homeResumeStatusSolidBackground(theme, status),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text(
+          homeResumeStatusLabel(status),
+          style: TextStyle(
+            color: homeResumeStatusSolidForeground(theme, status),
+            fontWeight: FontWeight.w600,
+            fontSize: 12,
+          ),
+        ),
+      );
+
+  Widget _modulePill(FluentThemeData theme, String label) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+    decoration: BoxDecoration(
+      color: theme.resources.subtleFillColorSecondary,
+      borderRadius: BorderRadius.circular(10),
+    ),
+    child: Text(
+      label,
+      style: theme.typography.caption?.copyWith(fontSize: 11),
+    ),
+  );
 
   Widget _indicatorsBody(BuildContext context, CapabilitySnapshot? capabilities) {
     return ListView(
@@ -417,18 +557,35 @@ class _HomeCenterViewState extends ConsumerState<HomeCenterView> {
     }
 
     final visible = cards.take(4).toList(growable: false);
-    return Wrap(
-      key: const Key('home-metrics-row'),
-      spacing: 12,
-      runSpacing: 12,
-      children: [
-        for (final card in visible)
-          SizedBox(
-            key: Key('home-metric-card-${card.label}'),
-            width: 200,
-            child: _metricCardView(context, card),
-          ),
-      ],
+    // Se reparten TODO el ancho disponible en una sola fila, como en la
+    // lámina — antes cada una medía 200 px fijos y dejaba un hueco vacío a
+    // la derecha en vez de repartirse (orden del dueño, 15-sep-2026, viendo
+    // `inicio-completo-1920.png`). Mismo cálculo que ya usa
+    // `HomeIndicatorGrid` (ancho disponible ÷ tarjetas, con `Wrap`, no
+    // `Row`+`Expanded`): un `Row` con `CrossAxisAlignment.stretch` alrededor
+    // de un `Card` colgaba `pumpAndSettle` para siempre en las pruebas —
+    // `Wrap` con un ancho ya calculado no tiene ese problema.
+    const spacing = 12.0;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = visible.isEmpty
+            ? 0.0
+            : (constraints.maxWidth - spacing * (visible.length - 1)) /
+                  visible.length;
+        return Wrap(
+          key: const Key('home-metrics-row'),
+          spacing: spacing,
+          runSpacing: spacing,
+          children: [
+            for (final card in visible)
+              SizedBox(
+                key: Key('home-metric-card-${card.label}'),
+                width: width,
+                child: _metricCardView(context, card),
+              ),
+          ],
+        );
+      },
     );
   }
 
@@ -448,7 +605,21 @@ class _HomeCenterViewState extends ConsumerState<HomeCenterView> {
               overflow: TextOverflow.ellipsis,
             ),
             const SizedBox(height: 4),
-            Text(card.value, style: theme.typography.titleLarge),
+            // Una sola línea, reducida de escala en vez de partida en dos
+            // (defecto viejo con «$12,480.50»: sin miles cabía por poco, con
+            // miles ya no, y el número se envolvía a un segundo renglón).
+            Align(
+              alignment: Alignment.centerLeft,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  card.value,
+                  style: theme.typography.titleLarge,
+                  maxLines: 1,
+                ),
+              ),
+            ),
             if (card.detail != null)
               Text(
                 card.detail!,

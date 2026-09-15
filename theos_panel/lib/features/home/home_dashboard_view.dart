@@ -21,7 +21,23 @@ int homeDashboardColumns(double width) {
   return 1;
 }
 
-String homeCurrencyLabel(double amount) => '\$${amount.toStringAsFixed(2)}';
+/// Miles con coma y dos decimales («$12,480.50»), mismo formato que ya usa
+/// `orders_screen.dart` (`_formatAmount`) — sin `intl`, por la misma razón:
+/// el paquete no es dependencia de `theos_panel`. Antes esto sólo hacía
+/// `toStringAsFixed(2)`, lo que en una cifra de 5+ dígitos («$12480.50») no
+/// cabía en una línea de la tarjeta de indicador y se partía en dos.
+String homeCurrencyLabel(double amount) {
+  final fixed = amount.toStringAsFixed(2);
+  final parts = fixed.split('.');
+  final negative = parts[0].startsWith('-');
+  final digits = negative ? parts[0].substring(1) : parts[0];
+  final grouped = StringBuffer();
+  for (var i = 0; i < digits.length; i++) {
+    if (i > 0 && (digits.length - i) % 3 == 0) grouped.write(',');
+    grouped.write(digits[i]);
+  }
+  return '${negative ? '-' : ''}\$$grouped.${parts[1]}';
+}
 
 /// «Hace un momento», «Hace 5 min», «Hoy 14:32», «Ayer 09:10» o `dd/MM HH:mm`
 /// — sin `intl`: el paquete no es dependencia de `theos_panel` y añadirlo
