@@ -1,14 +1,47 @@
+import 'dart:math' as math;
+
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:theos_panel/app/preferences/app_preferences.dart';
+import 'package:theos_panel/app/theme/orbi_theme.dart';
 import 'package:theos_panel/features/auth/auth_controller.dart';
 import 'package:theos_panel/features/auth/pin_credential_store.dart';
 import 'package:theos_panel/features/auth/pin_login_screen.dart';
 import 'package:theos_panel/ui/components/orbi_brand.dart';
 import 'package:theos_panel/ui/fluent/orbi_fluent_theme.dart';
+
+/// Luminancia relativa WCAG de un color opaco (fórmula sRGB estándar).
+/// `Color.r/g/b` ya vienen en 0.0-1.0 (API moderna de dart:ui en este SDK).
+double _relativeLuminance(Color c) {
+  double channel(double s) {
+    return s <= 0.03928 ? s / 12.92 : math.pow((s + 0.055) / 1.055, 2.4).toDouble();
+  }
+
+  return 0.2126 * channel(c.r) + 0.7152 * channel(c.g) + 0.0722 * channel(c.b);
+}
+
+/// Contraste WCAG entre dos colores OPACOS (sin mezclar alfa aquí — quien
+/// llama ya debe pasar el color efectivo resultante de pintar sobre el
+/// fondo, si el original tenía transparencia).
+double _contrastRatio(Color a, Color b) {
+  final la = _relativeLuminance(a);
+  final lb = _relativeLuminance(b);
+  final lighter = la > lb ? la : lb;
+  final darker = la > lb ? lb : la;
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+/// Mezcla `fg` (posiblemente con alfa) sobre `bg` (opaco), como lo pintaría
+/// realmente el motor — para poder medir el contraste EFECTIVO en pantalla,
+/// no el del color declarado a secas.
+Color _blendOver(Color fg, Color bg) {
+  final a = fg.a;
+  double mix(double f, double b) => f * a + b * (1 - a);
+  return Color.from(alpha: 1.0, red: mix(fg.r, bg.r), green: mix(fg.g, bg.g), blue: mix(fg.b, bg.b));
+}
 
 /// Mirrors login_screen_test.dart's own window-size helper: MediaQuery.sizeOf
 /// is what PinLoginScreen's compact-vs-normal decision reads, so a test that
@@ -396,7 +429,12 @@ void main() {
     await _tapDigits(tester, '9999');
     await tester.pump();
     expect(find.text('PIN inválido. Intenta nuevamente.'), findsOneWidget);
-    await tester.pumpAndSettle();
+    // Ya no hay ProgressRing corriendo mientras se ve el mensaje (ver fix
+    // 15-sep-2026: la tecla de borrar debe quedar activa de inmediato para
+    // reintentar) — pumpAndSettle() converge en el primer frame estable y
+    // nunca llegaría a los 700ms del temporizador de limpieza. Se avanza el
+    // reloj explícitamente, como ya hace la prueba de bloqueo de abajo.
+    await tester.pump(const Duration(milliseconds: 700));
     expect(find.text('PIN inválido. Intenta nuevamente.'), findsNothing);
     // The keypad is usable again, not stuck.
     expect(find.byKey(const Key('pin-key-1')), findsOneWidget);
@@ -673,7 +711,12 @@ void main() {
       await _tapDigits(tester, '1111');
       await tester.pump();
       expect(find.text('PIN inválido. Intenta nuevamente.'), findsOneWidget);
-      await tester.pumpAndSettle();
+      // pumpAndSettle() ya no sirve aquí: sin el ProgressRing corriendo
+      // durante el mensaje de error (fix 15-sep-2026), converge de
+      // inmediato y nunca llegaría a los 700ms que tarda el temporizador en
+      // limpiar el PIN — y sin limpiarlo, los cuatro dígitos de "2222" de
+      // abajo se ignorarían (el PIN ya "estaría lleno" con el 1111 viejo).
+      await tester.pump(const Duration(milliseconds: 700));
       expect(granted, isFalse);
 
       // El PIN correcto de B entra como B, nunca como A.
@@ -872,6 +915,174 @@ void main() {
       final decoration = firstDot.decoration! as BoxDecoration;
       final border = decoration.border! as Border;
       expect(border.top.color, expectedColor);
+    },
+  );
+
+  // --- Retoques pedidos tras revisar las capturas de ACC-02 (15-sep-2026):
+  // aire entre los puntos y el teclado, progreso que no se apaga tras un PIN
+  // inválido, y contraste del contorno/separador en tema oscuro. Las tres
+  // fallan contra 00c70e0.
+
+  testWidgets(
+    '(e) there is clear air between the PIN dots and the first keypad row',
+    (tester) async {
+      final preferences = await _preferencesWithPin('1234');
+      // Ventana alta de sobra para que se use el estilo NORMAL (no
+      // compacto) — mismo tamaño que ya usa la prueba de presupuesto de
+      // layout de arriba, así el hueco esperado es exactamente
+      // OrbiTheme.space24, sin ambigüedad de compact/no compact.
+      await _setWindowSize(tester, const Size(1200, 1000));
+      addTearDown(() => _resetWindowSize(tester));
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authServiceProvider.overrideWithValue(
+              _FakeAuthService(
+                const AuthServiceResult(
+                  status: AuthServiceStatus.required,
+                  profile: _profile,
+                ),
+              ),
+            ),
+            sharedPreferencesProvider.overrideWithValue(preferences),
+          ],
+          child: FluentApp(
+            theme: OrbiFluentTheme.light,
+            home: const PinLoginScreen(),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+      final dotsRect = tester.getRect(find.byKey(const Key('pin-dots')));
+      final firstKeyRect = tester.getRect(find.byKey(const Key('pin-key-1')));
+      final gap = firstKeyRect.top - dotsRect.bottom;
+      expect(
+        gap,
+        greaterThanOrEqualTo(OrbiTheme.space24 - 0.5),
+        reason:
+            'antes de este fix el hueco era 0 (los puntos tocaban la '
+            'primera fila de teclas)',
+      );
+    },
+  );
+
+  testWidgets(
+    '(f) after an invalid PIN there is no ProgressRing, and the backspace '
+    'key is enabled to retry right away',
+    (tester) async {
+      final preferences = await _preferencesWithPin('1234');
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authServiceProvider.overrideWithValue(
+              _FakeAuthService(
+                const AuthServiceResult(
+                  status: AuthServiceStatus.required,
+                  profile: _profile,
+                ),
+              ),
+            ),
+            sharedPreferencesProvider.overrideWithValue(preferences),
+          ],
+          child: FluentApp(
+            theme: OrbiFluentTheme.light,
+            home: const PinLoginScreen(),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+      await _tapDigits(tester, '9999');
+      await tester.pump();
+      expect(find.text('PIN inválido. Intenta nuevamente.'), findsOneWidget);
+      // Antes de este fix el botón "Entrar" seguía en `_PinPhase.verifying`
+      // (con su ProgressRing) los mismos 700ms que el mensaje rojo, y por
+      // construcción (`busy ? null : _onBackspace`) eso dejaba la tecla de
+      // borrar desactivada mientras tanto.
+      expect(
+        find.byType(ProgressRing),
+        findsNothing,
+        reason: 'el resultado inválido ya se sabe: no debe seguir "cargando"',
+      );
+      final backspace = tester.widget<Button>(
+        find.byKey(const Key('pin-key-backspace')),
+      );
+      expect(
+        backspace.onPressed,
+        isNotNull,
+        reason: 'debe poder borrar para reintentar de inmediato',
+      );
+      // El temporizador de 700ms que limpia el PIN/mensaje sigue pendiente;
+      // se deja correr para no terminar el test con un Timer vivo.
+      await tester.pump(const Duration(milliseconds: 700));
+    },
+  );
+
+  testWidgets(
+    '(g) in dark theme, the empty PIN dots outline and the panel divider '
+    'both have at least 3:1 contrast against the card background',
+    (tester) async {
+      final preferences = await _preferencesWithPin('1234');
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authServiceProvider.overrideWithValue(
+              _FakeAuthService(
+                const AuthServiceResult(
+                  status: AuthServiceStatus.required,
+                  profile: _profile,
+                ),
+              ),
+            ),
+            sharedPreferencesProvider.overrideWithValue(preferences),
+          ],
+          child: FluentApp(
+            theme: OrbiFluentTheme.dark,
+            home: const PinLoginScreen(equipmentLabel: 'Mostrador 02'),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+      final context = tester.element(find.byKey(const Key('pin-dots')));
+      final theme = FluentTheme.of(context);
+      final cardBg = theme.menuColor;
+
+      final firstDot = tester
+          .widgetList<Container>(
+            find.descendant(
+              of: find.byKey(const Key('pin-dots')),
+              matching: find.byType(Container),
+            ),
+          )
+          .first;
+      final dotDecoration = firstDot.decoration! as BoxDecoration;
+      final dotBorderColor = (dotDecoration.border! as Border).top.color;
+      final dotEffective = _blendOver(dotBorderColor, cardBg);
+      final dotContrast = _contrastRatio(dotEffective, cardBg);
+      expect(
+        dotContrast,
+        greaterThanOrEqualTo(3.0),
+        reason:
+            'contorno de los puntos vacíos, color efectivo $dotEffective '
+            'sobre fondo $cardBg → contraste $dotContrast',
+      );
+
+      final dividerWidget = tester.widget<Divider>(find.byType(Divider));
+      final dividerDecoration = dividerWidget.style!.decoration! as BoxDecoration;
+      final dividerColor = dividerDecoration.color!;
+      final dividerEffective = _blendOver(dividerColor, cardBg);
+      final dividerContrast = _contrastRatio(dividerEffective, cardBg);
+      expect(
+        dividerContrast,
+        greaterThanOrEqualTo(3.0),
+        reason:
+            'separador del panel, color efectivo $dividerEffective sobre '
+            'fondo $cardBg → contraste $dividerContrast (el Divider por '
+            'omisión de Fluent usa dividerStrokeColorDefault, ~1.3:1 en '
+            'oscuro)',
+      );
     },
   );
 }

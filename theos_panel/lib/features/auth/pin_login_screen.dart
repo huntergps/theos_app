@@ -315,7 +315,14 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
 
   void _onBackspace() {
     if (_phase != _PinPhase.entering || _pin.isEmpty) return;
-    setState(() => _pin = _pin.substring(0, _pin.length - 1));
+    // Si venía de un PIN inválido, borrar es "ya estoy reintentando": se
+    // cancela el temporizador de limpieza de _submit para que no le borre
+    // el dígito que la persona ACABA de dejar, 700ms después, por su cuenta.
+    _invalidPinResetTimer?.cancel();
+    setState(() {
+      _errorMessage = null;
+      _pin = _pin.substring(0, _pin.length - 1);
+    });
   }
 
   Future<void> _submit() async {
@@ -342,14 +349,23 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
         });
         return;
       }
-      setState(() => _errorMessage = _kInvalidPinMessage);
+      // El resultado "inválido" ya se sabe: apaga el progreso YA (no hay
+      // razón para que el botón siga con la rueda de carga ni para que la
+      // tecla de borrar se vea desactivada mientras el mensaje rojo ya está
+      // en pantalla). El PIN de 4 dígitos se conserva un instante para que
+      // se vean los puntos en rojo, como en la lámina ACC-02, y el propio
+      // temporizador de abajo lo limpia — sin tocar la lógica de intentos
+      // ni de bloqueo, que ya corrió arriba (`registerFailure`).
+      setState(() {
+        _errorMessage = _kInvalidPinMessage;
+        _phase = _PinPhase.entering;
+      });
       _invalidPinResetTimer?.cancel();
       _invalidPinResetTimer = Timer(const Duration(milliseconds: 700), () {
         if (!mounted) return;
         setState(() {
           _pin = '';
           _errorMessage = null;
-          _phase = _PinPhase.entering;
         });
       });
       return;
@@ -470,12 +486,17 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
         fit: StackFit.expand,
         children: [
           const OrbiAuthBackdrop(),
-          // bottom: false — bottomBar now sits in its own row BELOW this
-          // content area and already reserves the device's bottom inset via
-          // its own SafeArea (see `footer` above). Reserving it again here
-          // would shrink the card for no reason.
+          // 🔴 Ya NO bottom:false (revocado 15-sep-2026): el pie de abajo
+          // reserva el inset del dispositivo DENTRO de su propia franja
+          // (ver `footer`), pero eso sólo hace la franja gris más alta — no
+          // deja aire visible entre la tarjeta y el pie. En un teléfono con
+          // indicador de inicio, el margen de arriba (que SÍ reservaba su
+          // inset aquí) quedaba más grande que el de abajo, y la tarjeta
+          // parecía tocar el pie. Reservando el inset de abajo también
+          // aquí, `Center` reparte el mismo aire a los dos lados — el costo
+          // es que la tarjeta puede achicarse unos pocos px de más en un
+          // dispositivo con esa franja, que es lo correcto.
           SafeArea(
-            bottom: false,
             child: Center(
               child: Padding(
                 padding: const EdgeInsets.all(OrbiTheme.space16),
@@ -566,6 +587,11 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         header,
+        // Antes no había NADA aquí: los puntos del PIN (fin del header)
+        // quedaban pegados a la primera fila del teclado. La lámina ACC-02
+        // deja aire claro entre ambos — el mismo que ya separa el subtítulo
+        // de los puntos, así el ritmo vertical es consistente.
+        SizedBox(height: compact ? OrbiTheme.space12 : OrbiTheme.space24),
         Flexible(
           fit: FlexFit.loose,
           child: SingleChildScrollView(child: middle),
@@ -921,7 +947,18 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
             ],
           ),
           const SizedBox(height: OrbiTheme.space16),
-          const Divider(),
+          // El Divider por omisión de Fluent pinta con
+          // `dividerStrokeColorDefault`, que en oscuro es blanco al 8% de
+          // opacidad — contraste ~1.3:1 contra el fondo de la tarjeta,
+          // prácticamente invisible. Se reusa el mismo recurso de trazo
+          // fuerte que ya usan los puntos del PIN (~5:1 en claro y oscuro).
+          Divider(
+            style: DividerThemeData(
+              decoration: BoxDecoration(
+                color: theme.resources.controlStrongStrokeColorDefault,
+              ),
+            ),
+          ),
           const SizedBox(height: OrbiTheme.space16),
         ],
         Text(_kSalesOnlyTitle, style: theme.typography.bodyStrong),
