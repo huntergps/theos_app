@@ -410,6 +410,10 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
     final isWideLandscape =
         screenSize.width >= OrbiTheme.mediumBreakpoint &&
         screenSize.width > screenSize.height;
+    // Lámina ACC-02: sólo en teléfono «Entrar» sale de la rejilla y pasa a
+    // ocupar todo el ancho debajo — desktop, tablet horizontal Y tablet
+    // vertical lo mantienen dentro de la rejilla junto al 0.
+    final phoneWidth = screenSize.width < OrbiTheme.compactBreakpoint;
     final cardWidth = isWideLandscape ? 720.0 : math.min(screenSize.width - OrbiTheme.space16 * 2, 480.0);
     final contentWidth = cardWidth - OrbiTheme.space24 * 2;
     final keypadWidth = isWideLandscape ? contentWidth * 0.55 : contentWidth;
@@ -417,6 +421,7 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
       keypadWidth: keypadWidth,
       infoWidth: isWideLandscape ? contentWidth * 0.4 : contentWidth,
       stackedInfo: !isWideLandscape,
+      phoneWidth: phoneWidth,
       theme: theme,
       direction: direction,
       textScaleFactor: textScaleFactor,
@@ -490,6 +495,7 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
                       context,
                       isWideLandscape: isWideLandscape,
                       compact: compact,
+                      phoneWidth: phoneWidth,
                     ),
                   ),
                 ),
@@ -511,6 +517,7 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
     BuildContext context, {
     required bool isWideLandscape,
     required bool compact,
+    required bool phoneWidth,
   }) {
     if (_phase == _PinPhase.bootstrapping) {
       return const SizedBox(
@@ -525,7 +532,7 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
       return _buildLocked(context, compact: compact);
     }
     final header = _buildHeader(context, compact: compact);
-    final keypad = _buildKeypad(context, compact: compact);
+    final keypad = _buildKeypad(context, compact: compact, phoneWidth: phoneWidth);
     final info = _buildInfoPanel(context);
     final infoGap = compact ? OrbiTheme.space12 : OrbiTheme.space24;
     // Mirrors login_screen.dart's own safety net: [compact] only tunes
@@ -737,7 +744,7 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
                 border: Border.all(
                   color: invalid
                       ? critical
-                      : theme.resources.controlStrokeColorDefault,
+                      : theme.resources.controlStrongStrokeColorDefault,
                 ),
               ),
             ),
@@ -746,15 +753,30 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
     );
   }
 
-  Widget _buildKeypad(BuildContext context, {required bool compact}) {
+  Widget _buildKeypad(
+    BuildContext context, {
+    required bool compact,
+    required bool phoneWidth,
+  }) {
     final size = compact ? _kCompactKeySize : 64.0;
     final gap = compact ? OrbiTheme.space8 : OrbiTheme.space12;
-    const rows = [
-      ['1', '2', '3'],
-      ['4', '5', '6'],
-      ['7', '8', '9'],
-      ['back', '0', 'enter'],
-    ];
+    // En teléfono la lámina ACC-02 saca «Entrar» de la rejilla y lo pone a
+    // todo el ancho debajo; la celda que le tocaría junto al 0 queda vacía
+    // (no se recentra el par backspace/0) para que sigan alineados con las
+    // columnas 1 y 2 de las filas de arriba.
+    final rows = phoneWidth
+        ? const <List<String?>>[
+            ['1', '2', '3'],
+            ['4', '5', '6'],
+            ['7', '8', '9'],
+            ['back', '0', null],
+          ]
+        : const <List<String?>>[
+            ['1', '2', '3'],
+            ['4', '5', '6'],
+            ['7', '8', '9'],
+            ['back', '0', 'enter'],
+          ];
     final busy = _phase == _PinPhase.verifying;
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -769,18 +791,41 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
               ],
             ],
           ),
-          if (row != rows.last) SizedBox(height: gap),
+          if (row != rows.last || phoneWidth) SizedBox(height: gap),
         ],
+        if (phoneWidth)
+          SizedBox(
+            width: double.infinity,
+            height: size,
+            child: FilledButton(
+              key: const Key('pin-key-enter'),
+              onPressed: (busy || _pin.length != kSellerPinLength)
+                  ? null
+                  : () => unawaited(_submit()),
+              child: busy
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: ProgressRing(strokeWidth: 2),
+                    )
+                  : const Text('Entrar'),
+            ),
+          ),
       ],
     );
   }
 
   Widget _buildKey(
     BuildContext context,
-    String key, {
+    String? key, {
     required double size,
     required bool busy,
   }) {
+    // Celda vacía: sólo en teléfono, donde «Entrar» ya no comparte fila con
+    // el 0 (ver _buildKeypad). Mantiene la alineación de columnas.
+    if (key == null) {
+      return SizedBox(width: size, height: size);
+    }
     final theme = FluentTheme.of(context);
     if (key == 'back') {
       return SizedBox(
@@ -788,10 +833,16 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
         height: size,
         child: Tooltip(
           message: 'Borrar',
-          child: IconButton(
+          // Button estándar de Fluent (borde y fondo del tema), no
+          // IconButton — misma familia de widget que las teclas numéricas
+          // (orden del dueño: rejilla pareja con la lámina ACC-02).
+          child: Button(
             key: const Key('pin-key-backspace'),
             onPressed: busy ? null : _onBackspace,
-            icon: const Icon(FluentIcons.erase_tool),
+            // FluentIcons no trae un glifo de retroceso de teclado (⌫)
+            // literal — se revisó la clase entera. erase_tool («borrar») es
+            // el que más se le acerca dentro del set y ya se usaba aquí.
+            child: const Icon(FluentIcons.erase_tool),
           ),
         ),
       );
@@ -802,8 +853,10 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
         height: size,
         child: FilledButton(
           key: const Key('pin-key-enter'),
+          // Sin relleno propio: «Entrar» comparte celda de tamaño fijo con
+          // el resto de la rejilla, y FittedBox encoge el texto para que
+          // quepa en vez de desbordar con textos grandes de accesibilidad.
           style: const ButtonStyle(
-            shape: WidgetStatePropertyAll(CircleBorder()),
             padding: WidgetStatePropertyAll(EdgeInsets.zero),
           ),
           onPressed: (busy || _pin.length != kSellerPinLength)
@@ -815,18 +868,19 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
                   height: 18,
                   child: ProgressRing(strokeWidth: 2),
                 )
-              : const Icon(FluentIcons.accept),
+              : const FittedBox(child: Text('Entrar')),
         ),
       );
     }
+    // Button estándar de Fluent: trae borde y fondo del tema por omisión,
+    // del mismo tamaño en toda la rejilla (orden del dueño, lámina ACC-02).
+    // Antes era OutlinedButton con CircleBorder, casi sin contorno visible.
     return SizedBox(
       width: size,
       height: size,
-      child: OutlinedButton(
+      child: Button(
         key: Key('pin-key-$key'),
         style: ButtonStyle(
-          shape: const WidgetStatePropertyAll(CircleBorder()),
-          padding: const WidgetStatePropertyAll(EdgeInsets.zero),
           textStyle: WidgetStatePropertyAll(theme.typography.subtitle),
         ),
         onPressed: busy ? null : () => _onDigit(key),
@@ -845,35 +899,38 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
       children: [
         if (equipmentLabel != null) ...[
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Icon(FluentIcons.pc1, color: theme.accentColor),
               const SizedBox(width: OrbiTheme.space8),
               Expanded(
-                child: Text(
-                  'Equipo\n$equipmentLabel',
-                  style: theme.typography.body,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Equipo',
+                      style: theme.typography.caption?.copyWith(
+                        color: secondary,
+                      ),
+                    ),
+                    Text(equipmentLabel, style: theme.typography.bodyStrong),
+                  ],
                 ),
               ),
             ],
           ),
+          const SizedBox(height: OrbiTheme.space16),
+          const Divider(),
           const SizedBox(height: OrbiTheme.space16),
         ],
         Text(_kSalesOnlyTitle, style: theme.typography.bodyStrong),
         const SizedBox(height: OrbiTheme.space8),
         Text(_kSalesOnlyBody, style: theme.typography.body),
         const SizedBox(height: OrbiTheme.space16),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(FluentIcons.info, size: 18, color: secondary),
-            const SizedBox(width: OrbiTheme.space8),
-            Expanded(
-              child: Text(
-                _kActivityNotice,
-                style: theme.typography.caption?.copyWith(color: secondary),
-              ),
-            ),
-          ],
+        InfoBar(
+          title: const Text(_kActivityNotice),
+          severity: InfoBarSeverity.info,
         ),
       ],
     );
@@ -892,6 +949,7 @@ double _estimateNormalModeHeight({
   required double keypadWidth,
   required double infoWidth,
   required bool stackedInfo,
+  required bool phoneWidth,
   required FluentThemeData theme,
   required TextDirection direction,
   required double textScaleFactor,
@@ -924,6 +982,11 @@ double _estimateNormalModeHeight({
       OrbiTheme.space24 + // gap before the keypad
       4 * 64.0 +
       3 * OrbiTheme.space12; // four 64px rows, three gaps between them
+  if (phoneWidth) {
+    // ACC-02 en teléfono: «Entrar» sale de la rejilla y se suma como un
+    // botón extra de ancho completo debajo de las cuatro filas.
+    total += OrbiTheme.space12 + 64.0;
+  }
   if (stackedInfo) {
     total += OrbiTheme.space24;
     if (equipmentLabel != null) {

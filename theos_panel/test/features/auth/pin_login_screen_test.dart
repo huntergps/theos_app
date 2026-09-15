@@ -683,4 +683,195 @@ void main() {
       expect(service.lastAuthenticatedAs?.login, 'user-b');
     },
   );
+
+  // --- Lámina ACC-02: teclado y panel del equipo (14-sep-2026) --------------
+  // Estas cuatro pruebas fallan contra b0645cd (antes de este cambio): ahí
+  // las teclas numéricas son OutlinedButton con CircleBorder casi sin
+  // contorno, «Entrar» es un círculo gris con un ícono de visto, el aviso de
+  // seguridad es una Row a mano (sin InfoBar) y el contorno de los puntos
+  // vacíos usa controlStrokeColorDefault en vez de
+  // controlStrongStrokeColorDefault.
+
+  testWidgets(
+    '(a) the numeric keys are standard Fluent Buttons, not the almost '
+    'invisible outlined circles',
+    (tester) async {
+      final preferences = await _preferencesWithPin('1234');
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authServiceProvider.overrideWithValue(
+              _FakeAuthService(
+                const AuthServiceResult(
+                  status: AuthServiceStatus.required,
+                  profile: _profile,
+                ),
+              ),
+            ),
+            sharedPreferencesProvider.overrideWithValue(preferences),
+          ],
+          child: FluentApp(
+            theme: OrbiFluentTheme.light,
+            home: const PinLoginScreen(),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+      for (final digit in [
+        '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', //
+      ]) {
+        expect(
+          find.widgetWithText(Button, digit),
+          findsOneWidget,
+          reason: 'la tecla "$digit" debe ser un Button estándar de Fluent',
+        );
+      }
+    },
+  );
+
+  testWidgets(
+    '(b) the enter action is a labeled FilledButton ("Entrar"), disabled '
+    'while the PIN is incomplete',
+    (tester) async {
+      final preferences = await _preferencesWithPin('1234');
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authServiceProvider.overrideWithValue(
+              _FakeAuthService(
+                const AuthServiceResult(
+                  status: AuthServiceStatus.required,
+                  profile: _profile,
+                ),
+              ),
+            ),
+            sharedPreferencesProvider.overrideWithValue(preferences),
+          ],
+          child: FluentApp(
+            theme: OrbiFluentTheme.light,
+            home: const PinLoginScreen(),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+      // Antes era un círculo gris con FluentIcons.accept; ahora debe ser un
+      // FilledButton con el texto «Entrar», como en la lámina ACC-02.
+      expect(find.widgetWithText(FilledButton, 'Entrar'), findsOneWidget);
+      FilledButton enterButton() => tester.widget<FilledButton>(
+        find.byKey(const Key('pin-key-enter')),
+      );
+      expect(
+        enterButton().onPressed,
+        isNull,
+        reason: 'con el PIN vacío debe estar desactivado',
+      );
+      // El PIN se auto-envía apenas llega al cuarto dígito (_onDigit hace
+      // dos setState seguidos, sin ningún await entre medio: uno agrega el
+      // dígito y el otro pasa a «verifying»), así que el instante
+      // «entering con 4 dígitos y el botón ya habilitado» dura menos que un
+      // microtask y no es observable por fuera del widget con pump(). Lo
+      // que sí se puede comprobar aquí es que sigue desactivado con 1, 2 y
+      // 3 dígitos; que se activa exactamente al llegar a 4 lo cubre, de
+      // forma indirecta, "entering the correct enrolled PIN grants seller
+      // access" más arriba en este archivo (el envío sólo ocurre si la
+      // condición de habilitado deja de bloquearlo).
+      for (final digit in ['1', '2', '3']) {
+        await tester.tap(find.byKey(Key('pin-key-$digit')));
+        await tester.pump();
+        expect(
+          enterButton().onPressed,
+          isNull,
+          reason: 'con menos de 4 dígitos debe seguir desactivado',
+        );
+      }
+      // Fluent's Button (HoverButton) schedules a 100ms Timer on tap-up to
+      // reset its own pressed visual state; flush it so the test does not
+      // end with a pending Timer.
+      await tester.pump(const Duration(milliseconds: 100));
+    },
+  );
+
+  testWidgets(
+    '(c) the security notice sits inside a Fluent InfoBar, not a hand-rolled '
+    'row',
+    (tester) async {
+      final preferences = await _preferencesWithPin('1234');
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authServiceProvider.overrideWithValue(
+              _FakeAuthService(
+                const AuthServiceResult(
+                  status: AuthServiceStatus.required,
+                  profile: _profile,
+                ),
+              ),
+            ),
+            sharedPreferencesProvider.overrideWithValue(preferences),
+          ],
+          child: FluentApp(
+            theme: OrbiFluentTheme.light,
+            home: const PinLoginScreen(),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+      expect(
+        find.descendant(
+          of: find.byType(InfoBar),
+          matching: find.text(
+            'Por seguridad, tu actividad quedará registrada.',
+          ),
+        ),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    '(d) the empty PIN dots outline with controlStrongStrokeColorDefault, '
+    'not the barely-visible default stroke',
+    (tester) async {
+      final preferences = await _preferencesWithPin('1234');
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authServiceProvider.overrideWithValue(
+              _FakeAuthService(
+                const AuthServiceResult(
+                  status: AuthServiceStatus.required,
+                  profile: _profile,
+                ),
+              ),
+            ),
+            sharedPreferencesProvider.overrideWithValue(preferences),
+          ],
+          child: FluentApp(
+            theme: OrbiFluentTheme.light,
+            home: const PinLoginScreen(),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+      final context = tester.element(find.byKey(const Key('pin-dots')));
+      final expectedColor = FluentTheme.of(
+        context,
+      ).resources.controlStrongStrokeColorDefault;
+      final firstDot = tester
+          .widgetList<Container>(
+            find.descendant(
+              of: find.byKey(const Key('pin-dots')),
+              matching: find.byType(Container),
+            ),
+          )
+          .first;
+      final decoration = firstDot.decoration! as BoxDecoration;
+      final border = decoration.border! as Border;
+      expect(border.top.color, expectedColor);
+    },
+  );
 }
