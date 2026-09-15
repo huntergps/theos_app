@@ -58,6 +58,77 @@ final class EnvasesExistenciasReader {
     }
     return EnvasesExistenciasData.fromJson(Map<String, dynamic>.from(value));
   }
+
+  /// Foto de producto, en un segundo viaje SEPARADO de [read] a propósito —
+  /// orden del dueño: «primero se publican las existencias y después se
+  /// completan las fotos», así una foto lenta nunca retrasa las cifras.
+  ///
+  /// `datos()` nunca trae imagen (no hay `image_128` en
+  /// `l10n_ec_stock_envases/models/envases_existencias.py:100-115`): el `id`
+  /// de cada fila es el de `product.product` (confirmado — `celdas`/`id`
+  /// salen de agrupar `stock.quant` por `product_id`, que en
+  /// `dev_odoo20/odoo/addons/stock/models/stock_quant.py:47-50` es
+  /// `Many2one('product.product', ...)`; ver también
+  /// `envases_existencias.py:79-90,101,110`). Por eso esto pide
+  /// `product.product`, con una lectura JSON-2 estándar — nunca se toca el
+  /// método `datos()`.
+  ///
+  /// Igual que el resto del proyecto (`ServerFeatureStore`,
+  /// `RuntimeCatalogLoader._resolvePresentFields`): primero `fields_get`
+  /// para confirmar que `image_128` existe en ESTE servidor. Si no lo trae,
+  /// devuelve `{}` (vacío de verdad, sin ninguna clave) sin llamar nunca a
+  /// `search_read` — la regla del proyecto de nunca mandar a Odoo un campo
+  /// que no se comprobó (caso `envases_operacion_uuid`). Un mapa NO vacío
+  /// con valores `null` es un resultado válido: "se comprobó y no hay foto".
+  Future<Map<int, String?>> readImages(Iterable<int> productIds) async {
+    final ids = productIds.toSet();
+    if (ids.isEmpty) return const {};
+    final metadata = await transport(
+      model: _imagenModel,
+      method: 'fields_get',
+      kwargs: const {
+        'allfields': [_imagenCampo],
+        'attributes': ['type'],
+      },
+      context: context,
+    );
+    if (metadata is! Map || !metadata.containsKey(_imagenCampo)) {
+      return const {};
+    }
+    final response = await transport(
+      model: _imagenModel,
+      method: 'search_read',
+      kwargs: {
+        'domain': [
+          ['id', 'in', ids.toList()..sort()],
+        ],
+        'fields': const ['id', _imagenCampo],
+      },
+      context: context,
+    );
+    if (response is! List) {
+      throw const FormatException('Invalid product.product image response');
+    }
+    final result = <int, String?>{};
+    for (final item in response) {
+      if (item is! Map) continue;
+      final rawId = item['id'];
+      if (rawId is! int) continue;
+      final rawImage = item[_imagenCampo];
+      result[rawId] = (rawImage is String && rawImage.isNotEmpty)
+          ? rawImage
+          : null;
+    }
+    // Un id pedido que Odoo no devolvió (producto borrado/archivado entre la
+    // lectura de existencias y ésta) se queda sin foto, no roto.
+    for (final id in ids) {
+      result.putIfAbsent(id, () => null);
+    }
+    return result;
+  }
+
+  static const _imagenModel = 'product.product';
+  static const _imagenCampo = 'image_128';
 }
 
 /// One column of the grid: a site, a transit direction, damaged goods or a
@@ -127,6 +198,7 @@ final class EnvasesExistenciasRow {
     required this.uom,
     required Map<String, double> celdas,
     required this.total,
+    this.imagenBase64,
   }) : celdas = Map.unmodifiable(celdas);
 
   factory EnvasesExistenciasRow.fromJson(
@@ -159,12 +231,16 @@ final class EnvasesExistenciasRow {
     final celdas = <String, double>{
       for (final entry in celdasMap.entries) entry.key: _number(entry.value),
     };
+    final rawImagen = json['imagen_128'];
     return EnvasesExistenciasRow(
       id: id,
       nombre: nombre,
       uom: uom,
       celdas: celdas,
       total: _number(json['total']),
+      imagenBase64: (rawImagen is String && rawImagen.isNotEmpty)
+          ? rawImagen
+          : null,
     );
   }
 
@@ -174,12 +250,32 @@ final class EnvasesExistenciasRow {
   final Map<String, double> celdas;
   final double total;
 
+  /// `product.product.image_128`, en base64, sólo cuando
+  /// [EnvasesExistenciasReader.readImages] la trajo y
+  /// `EnvasesExistenciasCache.mergeImages` ya la fusionó en la copia local.
+  /// `null` es "todavía sin foto" (o "el servidor confirmó que no hay
+  /// ninguna"), nunca un error — la pantalla cae al ícono de Fluent.
+  final String? imagenBase64;
+
+  /// Copia esta fila con una foto nueva (o su ausencia), sin tocar el resto
+  /// — lo único que cambia entre `datos()` y la fusión posterior de fotos.
+  EnvasesExistenciasRow withImagen(String? imagenBase64) =>
+      EnvasesExistenciasRow(
+        id: id,
+        nombre: nombre,
+        uom: uom,
+        celdas: celdas,
+        total: total,
+        imagenBase64: imagenBase64,
+      );
+
   Map<String, dynamic> toJson() => {
     'id': id,
     'nombre': nombre,
     'uom': uom,
     'celdas': celdas,
     'total': total,
+    if (imagenBase64 != null) 'imagen_128': imagenBase64,
   };
 }
 

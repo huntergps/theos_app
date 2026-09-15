@@ -198,6 +198,44 @@ void main() {
   });
 
   test(
+    'mergeImages fills in photos without touching cachedAt or quantities',
+    () async {
+      final o = owner();
+      final db = await o.open(scope);
+      addTearDown(o.close);
+      final cache = EnvasesExistenciasCache(
+        owner: o,
+        lease: db.lease,
+        company: company(1),
+      );
+      await cache.refresh(reader(company(1), () async => datos()));
+      final before = await cache.read();
+
+      await cache.mergeImages({501: 'Zm90bw=='});
+
+      final after = await cache.read();
+      expect(after!.data.filas.single.imagenBase64, 'Zm90bw==');
+      expect(after.data.filas.single.total, before!.data.filas.single.total);
+      expect(after.cachedAt, before.cachedAt);
+    },
+  );
+
+  test('mergeImages does nothing when nothing is cached yet', () async {
+    final o = owner();
+    final db = await o.open(scope);
+    addTearDown(o.close);
+    final cache = EnvasesExistenciasCache(
+      owner: o,
+      lease: db.lease,
+      company: company(1),
+    );
+
+    await cache.mergeImages({501: 'Zm90bw=='});
+
+    expect(await cache.read(), isNull);
+  });
+
+  test(
     'rejects stale cross-instance refresh and preserves the newer response',
     () async {
       final o1 = owner();

@@ -134,6 +134,7 @@ class OrbiListing<T> extends StatefulWidget {
     this.onRowTap,
     this.emptyMessage = 'No hay nada que mostrar todavía',
     this.cardBadge,
+    this.cardBuilder,
   });
 
   /// Por debajo de este ancho la rejilla deja paso a tarjetas. Medido, no
@@ -191,6 +192,25 @@ class OrbiListing<T> extends StatefulWidget {
   /// resume la fila, y el listado decide CÓMO se ve. Aceptar un widget aquí
   /// sería abrir otra vez la puerta a que cada pantalla se pinte el suyo.
   final String Function(T row)? cardBadge;
+
+  /// Reemplaza LA FICHA COMPLETA en estrecho por una a medida de la
+  /// pantalla, cuando la ficha genérica (título + líneas + cuadrícula de
+  /// métricas de 1-2 columnas) no basta para igualar una lámina aprobada —
+  /// caso de ENV-01, cuyas ubicaciones van en tres columnas en tableta y en
+  /// una fila por ubicación en teléfono, con una flecha que las pliega.
+  /// Recibe la fila, las columnas visibles (las mismas que decide
+  /// "Columnas") y el ancho disponible dentro de la tarjeta.
+  ///
+  /// `null` (por omisión) conserva la ficha genérica de siempre — este
+  /// parámetro es aditivo a propósito: ninguna otra pantalla que use
+  /// `OrbiListing` cambia de aspecto por su sola existencia.
+  final Widget Function(
+    BuildContext context,
+    T row,
+    List<OrbiColumn<T>> columns,
+    double width,
+  )?
+  cardBuilder;
 
   @override
   State<OrbiListing<T>> createState() => _OrbiListingState<T>();
@@ -379,25 +399,34 @@ class _OrbiListingState<T> extends State<OrbiListing<T>> {
       separatorBuilder: (_, _) => const SizedBox(height: 8),
       itemBuilder: (context, index) {
         final row = widget.rows[index];
-        final card = Card(
-          padding: const EdgeInsets.all(12),
-          child: LayoutBuilder(
-            builder: (context, constraints) => Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _cardTitle(context, row, title, subtitles),
-                for (final column in plain) ...[
-                  const SizedBox(height: 6),
-                  _cardLine(context, row, column),
-                ],
-                if (metrics.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  _cardMetrics(context, row, metrics, constraints.maxWidth),
-                ],
-              ],
-            ),
-          ),
-        );
+        final card = widget.cardBuilder != null
+            ? LayoutBuilder(
+                builder: (context, constraints) => widget.cardBuilder!(
+                  context,
+                  row,
+                  columns,
+                  constraints.maxWidth,
+                ),
+              )
+            : Card(
+                padding: const EdgeInsets.all(12),
+                child: LayoutBuilder(
+                  builder: (context, constraints) => Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _cardTitle(context, row, title, subtitles),
+                      for (final column in plain) ...[
+                        const SizedBox(height: 6),
+                        _cardLine(context, row, column),
+                      ],
+                      if (metrics.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        _cardMetrics(context, row, metrics, constraints.maxWidth),
+                      ],
+                    ],
+                  ),
+                ),
+              );
         if (widget.onRowTap == null) return card;
         return GestureDetector(onTap: () => widget.onRowTap!(row), child: card);
       },

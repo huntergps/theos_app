@@ -1,13 +1,16 @@
+import 'dart:convert';
+
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:odoo_widgets/odoo_widgets.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 
+import '../../app/theme/orbi_theme.dart';
 import '../../ui/components/orbi_components.dart';
 import '../../ui/export/export_listing.dart';
 import '../../ui/fluent/orbi_page.dart';
 import 'envases_existencias_contracts.dart';
 
-/// ENV-01 — Existencias de envases.
+/// «Estado de envases» (lámina aprobada ENV-01, ronda 2).
 ///
 /// Lee exclusivamente por [EnvasesExistenciasRepository.watch]: la copia
 /// local reactiva que expone `EnvasesExistenciasCache`. Una vez que un ciclo
@@ -17,14 +20,20 @@ import 'envases_existencias_contracts.dart';
 ///
 /// Ni una sede ni un sentido de tránsito están escritos aquí: cada columna
 /// de la rejilla sale, en el orden que entregue el servidor, de
-/// `l10n_ec.envases.existencias.datos()` (`EnvasesExistenciasReader`).
+/// `l10n_ec.envases.existencias.datos()` (`EnvasesExistenciasReader`). Eso
+/// incluye las columnas `custodia_cliente`/`custodia_proveedor` — "Clientes"
+/// y "Proveedores" de la lámina no son un caso especial: son una ubicación
+/// más, con su propio `tipo`.
 ///
-/// Por orden del dueño (11-sep-2026) — *«todos los listados deben tener el
-/// mismo aspecto»* — la ficha en estrecho la pinta el `OrbiListing`
-/// estándar: `OrbiColumn.subtitle` pone la unidad de medida bajo el nombre
-/// del producto, `OrbiColumn.metric` dibuja cada columna dinámica en su
-/// propio recuadro, y `OrbiListing.cardBadge` pinta el total del producto en
-/// la esquina del título.
+/// En ancho grande (escritorio) sigue pintando el `OrbiListing` estándar:
+/// rejilla + `Total` como última columna. Por debajo del corte de tarjeta
+/// (`OrbiListing.cardBreakpoint`, el mismo `OrbiTheme.mediumBreakpoint`), la
+/// ficha por producto es a medida de esta pantalla (`OrbiListing.cardBuilder`)
+/// porque la lámina pide algo que la ficha genérica no ofrece: foto,
+/// insignia de acento, una flecha que pliega/despliega las ubicaciones, y
+/// las propias ubicaciones en tres columnas (tableta) o una fila cada una
+/// (teléfono) — sin la fila «Total» suelta, porque la insignia ya es el
+/// total.
 class EnvasesExistenciasScreen extends StatefulWidget {
   const EnvasesExistenciasScreen({super.key, required this.repository, this.onExport});
 
@@ -40,6 +49,11 @@ class _EnvasesExistenciasScreenState extends State<EnvasesExistenciasScreen> {
   bool _refreshing = false;
   Object? _refreshError;
   String _productQuery = '';
+
+  /// `null` en los tres es "Todas" — el valor por omisión de la lámina.
+  String? _filtroProducto;
+  String? _filtroPresentacion;
+  String? _filtroUbicacion;
 
   // Capturado una sola vez: `watch()` debe seguir siendo la misma
   // suscripción entre reconstrucciones (escribir en el filtro reconstruye
@@ -71,7 +85,7 @@ class _EnvasesExistenciasScreenState extends State<EnvasesExistenciasScreen> {
 
   @override
   Widget build(BuildContext context) => OrbiPage(
-    title: 'Existencias de envases',
+    title: 'Estado de envases',
     commands: [
       CommandBarButton(
         key: const Key('envases-existencias-refresh-button'),
@@ -119,6 +133,7 @@ class _EnvasesExistenciasScreenState extends State<EnvasesExistenciasScreen> {
   Widget _body(BuildContext context, EnvasesExistenciasSnapshot snapshot) {
     final data = snapshot.data;
     final rows = _filteredRows(data.filas);
+    final columnas = _filteredColumnas(data.columnas);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -127,6 +142,8 @@ class _EnvasesExistenciasScreenState extends State<EnvasesExistenciasScreen> {
           const SizedBox(height: 8),
           _ErrorBanner(onRetry: _refresh),
         ],
+        const SizedBox(height: 12),
+        _filtersRow(context, data),
         const SizedBox(height: 12),
         Expanded(
           child: data.filas.isEmpty
@@ -145,7 +162,7 @@ class _EnvasesExistenciasScreenState extends State<EnvasesExistenciasScreen> {
                   padding: const EdgeInsets.all(8),
                   child: OrbiListing<EnvasesExistenciasRow>(
                     rows: rows,
-                    columns: _columns(data.columnas),
+                    columns: _columns(columnas),
                     storageKey: 'envases-existencias',
                     filterText: _productQuery,
                     onFilterChanged: (value) => setState(
@@ -156,8 +173,8 @@ class _EnvasesExistenciasScreenState extends State<EnvasesExistenciasScreen> {
                         ? null
                         : (bytes, name) => widget.onExport!(context, bytes, name),
                     exportFileName: 'envases-existencias',
-                    cardBadge: (row) => '${_formatQuantity(row.total)} propios',
                     emptyMessage: 'No hay productos que coincidan con el filtro.',
+                    cardBuilder: _buildCard,
                   ),
                 ),
         ),
@@ -165,16 +182,43 @@ class _EnvasesExistenciasScreenState extends State<EnvasesExistenciasScreen> {
     );
   }
 
-  List<EnvasesExistenciasRow> _filteredRows(List<EnvasesExistenciasRow> rows) =>
-      _productQuery.isEmpty
-      ? rows
-      : rows
-            .where(
-              (row) =>
-                  row.nombre.toLowerCase().contains(_productQuery) ||
-                  row.uom.toLowerCase().contains(_productQuery),
-            )
-            .toList(growable: false);
+  List<EnvasesExistenciasRow> _filteredRows(List<EnvasesExistenciasRow> rows) {
+    var result = rows;
+    if (_filtroProducto case final producto?) {
+      result = result
+          .where((row) => row.nombre == producto)
+          .toList(growable: false);
+    }
+    if (_filtroPresentacion case final presentacion?) {
+      result = result
+          .where((row) => row.uom == presentacion)
+          .toList(growable: false);
+    }
+    if (_productQuery.isNotEmpty) {
+      result = result
+          .where(
+            (row) =>
+                row.nombre.toLowerCase().contains(_productQuery) ||
+                row.uom.toLowerCase().contains(_productQuery),
+          )
+          .toList(growable: false);
+    }
+    return result;
+  }
+
+  /// Filtrar por «Ubicación» no esconde filas: dejar sólo esa columna
+  /// (tabla) o esa fila de detalle (tarjeta), en el mismo lugar donde ya
+  /// viven las demás ubicaciones — nunca un camino aparte.
+  List<EnvasesExistenciasColumn> _filteredColumnas(
+    List<EnvasesExistenciasColumn> columnas,
+  ) {
+    if (_filtroUbicacion case final ubicacion?) {
+      return columnas
+          .where((columna) => columna.nombre == ubicacion)
+          .toList(growable: false);
+    }
+    return columnas;
+  }
 
   /// Columnas de la rejilla: producto, unidad, una por cada `columna` que
   /// entregó `datos()` (en su mismo orden) y, al final, el total — nunca un
@@ -211,6 +255,84 @@ class _EnvasesExistenciasScreenState extends State<EnvasesExistenciasScreen> {
     ),
   ];
 
+  /// La ficha a medida de esta pantalla (`OrbiListing.cardBuilder`): foto,
+  /// nombre + unidad, insignia de acento y una flecha que pliega/despliega
+  /// las ubicaciones — nunca la fila «Total» suelta, porque la insignia ya
+  /// es el total.
+  Widget _buildCard(
+    BuildContext context,
+    EnvasesExistenciasRow row,
+    List<OrbiColumn<EnvasesExistenciasRow>> columns,
+    double width,
+  ) {
+    String? subtitulo;
+    final ubicaciones = <_UbicacionValor>[];
+    for (final column in columns) {
+      if (column.subtitle) {
+        subtitulo = column.value(row);
+      } else if (column.metric) {
+        ubicaciones.add(
+          _UbicacionValor(nombre: column.label, valor: column.value(row)),
+        );
+      }
+    }
+    return _EnvasesProductCard(
+      key: ValueKey('envases-existencias-card-${row.id}'),
+      nombre: row.nombre,
+      subtitulo: subtitulo,
+      totalTexto: '${_formatQuantity(row.total)} propios',
+      imagenBase64: row.imagenBase64,
+      ubicaciones: ubicaciones,
+      width: width,
+    );
+  }
+
+  /// Producto/Presentación/Ubicación, siempre en una sola fila (también en
+  /// teléfono, tal como la lámina) — orden del dueño: los desplegables van
+  /// SOBRE el buscador de texto, que se conserva debajo.
+  Widget _filtersRow(BuildContext context, EnvasesExistenciasData data) {
+    final productos = data.filas.map((fila) => fila.nombre).toSet().toList()
+      ..sort();
+    final presentaciones = data.filas.map((fila) => fila.uom).toSet().toList()
+      ..sort();
+    final ubicaciones = <String>{
+      for (final columna in data.columnas) columna.nombre,
+    }.toList(growable: false);
+    return Row(
+      children: [
+        Expanded(
+          child: _FiltroCombo(
+            key: const Key('envases-existencias-filtro-producto'),
+            label: 'Producto',
+            value: _filtroProducto,
+            opciones: productos,
+            onChanged: (value) => setState(() => _filtroProducto = value),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _FiltroCombo(
+            key: const Key('envases-existencias-filtro-presentacion'),
+            label: 'Presentación',
+            value: _filtroPresentacion,
+            opciones: presentaciones,
+            onChanged: (value) => setState(() => _filtroPresentacion = value),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _FiltroCombo(
+            key: const Key('envases-existencias-filtro-ubicacion'),
+            label: 'Ubicación',
+            value: _filtroUbicacion,
+            opciones: ubicaciones,
+            onChanged: (value) => setState(() => _filtroUbicacion = value),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _header(BuildContext context, EnvasesExistenciasSnapshot snapshot) {
     final typography = FluentTheme.of(context).typography;
     return Padding(
@@ -218,8 +340,9 @@ class _EnvasesExistenciasScreenState extends State<EnvasesExistenciasScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Existencias de envases', style: typography.subtitle),
-          const SizedBox(height: 4),
+          // El título de la pantalla ya lo pinta `OrbiPage` (una sola vez);
+          // aquí sólo va lo que lo acompaña, nunca el título repetido —
+          // defecto medido el 15-sep-2026 contra la lámina aprobada.
           Text(
             'Última actualización en este equipo: ${_formatDate(snapshot.cachedAt)}',
             style: typography.body,
@@ -228,6 +351,285 @@ class _EnvasesExistenciasScreenState extends State<EnvasesExistenciasScreen> {
           _PendingWork(pendientes: snapshot.data.pendientes),
         ],
       ),
+    );
+  }
+}
+
+/// Un desplegable Fluent con su etiqueta, con "Todas" (`null`) por omisión —
+/// mismo widget para los tres filtros de la lámina, sólo cambian la etiqueta
+/// y las opciones.
+class _FiltroCombo extends StatelessWidget {
+  const _FiltroCombo({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.opciones,
+    required this.onChanged,
+  });
+
+  final String label;
+  final String? value;
+  final List<String> opciones;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context) => InfoLabel(
+    label: label,
+    child: ComboBox<String?>(
+      isExpanded: true,
+      value: value,
+      placeholder: const Text('Todas'),
+      items: [
+        const ComboBoxItem<String?>(value: null, child: Text('Todas')),
+        for (final opcion in opciones)
+          ComboBoxItem<String?>(
+            value: opcion,
+            child: Text(opcion, overflow: TextOverflow.ellipsis),
+          ),
+      ],
+      onChanged: onChanged,
+    ),
+  );
+}
+
+/// Una ubicación ya resuelta a texto (nombre de columna + cifra formateada)
+/// — el detalle de la tarjeta no vuelve a tocar `EnvasesExistenciasColumn`.
+class _UbicacionValor {
+  const _UbicacionValor({required this.nombre, required this.valor});
+  final String nombre;
+  final String valor;
+}
+
+/// La tarjeta de producto de la lámina aprobada: foto, nombre + unidad,
+/// insignia de acento a la derecha, y una flecha (`Expander`) que pliega o
+/// despliega las ubicaciones — desplegada por omisión.
+class _EnvasesProductCard extends StatelessWidget {
+  const _EnvasesProductCard({
+    super.key,
+    required this.nombre,
+    required this.subtitulo,
+    required this.totalTexto,
+    required this.imagenBase64,
+    required this.ubicaciones,
+    required this.width,
+  });
+
+  final String nombre;
+  final String? subtitulo;
+  final String totalTexto;
+  final String? imagenBase64;
+  final List<_UbicacionValor> ubicaciones;
+  final double width;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FluentTheme.of(context);
+    return Expander(
+      initiallyExpanded: true,
+      header: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          _ProductThumbnail(imagenBase64: imagenBase64),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  nombre,
+                  style: theme.typography.bodyStrong,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (subtitulo != null)
+                  Text(subtitulo!, style: theme.typography.caption),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          _AccentChip(text: totalTexto),
+        ],
+      ),
+      content: ubicaciones.isEmpty
+          ? Text(
+              'Sin ubicaciones con existencia.',
+              style: theme.typography.caption,
+            )
+          : (width < OrbiTheme.compactBreakpoint
+                ? _UbicacionesFilas(ubicaciones: ubicaciones)
+                : _UbicacionesGrid(ubicaciones: ubicaciones)),
+    );
+  }
+}
+
+/// Miniatura de producto de tamaño fijo. `product.product.image_128` sólo
+/// llega si `EnvasesExistenciasReader.readImages` la confirmó con
+/// `fields_get` y `EnvasesExistenciasCache.mergeImages` ya la fusionó en la
+/// copia local — por eso funciona sin conexión igual que el resto de la
+/// pantalla. Un `null`, o una foto que no decodifica, cae al ícono de
+/// Fluent de producto, nunca rompe la tarjeta.
+class _ProductThumbnail extends StatelessWidget {
+  const _ProductThumbnail({required this.imagenBase64});
+
+  final String? imagenBase64;
+
+  static const _size = 40.0;
+
+  @override
+  Widget build(BuildContext context) {
+    if (imagenBase64 case final imagen?) {
+      try {
+        final bytes = base64Decode(imagen);
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(6),
+          child: Image.memory(
+            bytes,
+            width: _size,
+            height: _size,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) => _fallback(context),
+          ),
+        );
+      } catch (_) {
+        return _fallback(context);
+      }
+    }
+    return _fallback(context);
+  }
+
+  Widget _fallback(BuildContext context) {
+    final resources = FluentTheme.of(context).resources;
+    return Container(
+      width: _size,
+      height: _size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: resources.subtleFillColorSecondary,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: const Icon(FluentIcons.product, size: 20),
+    );
+  }
+}
+
+/// La insignia «N propios»: fondo claro del acento, texto del acento —
+/// mismo patrón que `ListaEstadoChip`/`_orbiPill` (`orbi_listing.dart`), con
+/// el color del tema en vez de gris. Se ve bien en claro y oscuro porque el
+/// tinte es relativo al propio acento, no un color fijo.
+class _AccentChip extends StatelessWidget {
+  const _AccentChip({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = FluentTheme.of(context).accentColor.normal;
+    return Container(
+      key: const Key('envases-existencias-chip'),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        text,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 12),
+      ),
+    );
+  }
+}
+
+/// Ancho medio (tableta): rejilla de tres columnas sobre el fondo de la
+/// propia tarjeta, separadas por líneas finas del tema — nunca bloques
+/// grises rellenos.
+class _UbicacionesGrid extends StatelessWidget {
+  const _UbicacionesGrid({required this.ubicaciones});
+
+  final List<_UbicacionValor> ubicaciones;
+
+  static const _columnas = 3;
+
+  @override
+  Widget build(BuildContext context) {
+    final divider = FluentTheme.of(context).resources.dividerStrokeColorDefault;
+    final filas = <TableRow>[];
+    for (var i = 0; i < ubicaciones.length; i += _columnas) {
+      filas.add(
+        TableRow(
+          children: [
+            for (var c = 0; c < _columnas; c++)
+              i + c < ubicaciones.length
+                  ? _celda(context, ubicaciones[i + c])
+                  : const SizedBox.shrink(),
+          ],
+        ),
+      );
+    }
+    return Table(
+      border: TableBorder.symmetric(inside: BorderSide(color: divider)),
+      children: filas,
+    );
+  }
+
+  Widget _celda(BuildContext context, _UbicacionValor ubicacion) {
+    final theme = FluentTheme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            ubicacion.nombre,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.typography.caption?.copyWith(
+              color: theme.resources.textFillColorSecondary,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(ubicacion.valor, style: theme.typography.bodyStrong),
+        ],
+      ),
+    );
+  }
+}
+
+/// Ancho compacto (teléfono): una fila por ubicación, nombre a la izquierda
+/// y cifra a la derecha, con un divisor fino entre filas — nunca bloques
+/// grises apilados.
+class _UbicacionesFilas extends StatelessWidget {
+  const _UbicacionesFilas({required this.ubicaciones});
+
+  final List<_UbicacionValor> ubicaciones;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FluentTheme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var i = 0; i < ubicaciones.length; i++) ...[
+          if (i > 0) const Divider(),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    ubicaciones[i].nombre,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(ubicaciones[i].valor, style: theme.typography.bodyStrong),
+              ],
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

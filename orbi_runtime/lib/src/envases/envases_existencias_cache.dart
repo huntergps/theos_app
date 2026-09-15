@@ -197,6 +197,72 @@ final class EnvasesExistenciasCache {
     }
   }
 
+  /// Fusiona fotos de producto ya leídas ([EnvasesExistenciasReader.readImages])
+  /// en la copia local, SIN tocar `cachedAt` ni ninguna cifra — esto no es un
+  /// refresco, es sólo completar lo que `refresh()` ya publicó.
+  ///
+  /// Mejor esfuerzo a propósito: si no hay nada cacheado todavía, si el
+  /// payload no decodifica, o si otro `refresh()`/`mergeImages` ganó la
+  /// carrera mientras leíamos las fotos, esto simplemente no escribe nada —
+  /// nunca lanza. Una foto es una mejora visual; nunca debe tumbar la
+  /// sincronización de existencias ni dejarla en un estado de error.
+  Future<void> mergeImages(Map<int, String?> imagenes) async {
+    if (imagenes.isEmpty) return;
+    final active = _active(writing: false);
+    if (active == null) return;
+    final baseline = await _readStored(active);
+    if (baseline == null) return;
+    final EnvasesExistenciasSnapshot snapshot;
+    try {
+      snapshot = _decode(baseline.payload, expectedCachedAt: baseline.cachedAt);
+    } catch (_) {
+      return;
+    }
+    var changed = false;
+    final updatedFilas = [
+      for (final fila in snapshot.data.filas)
+        if (imagenes.containsKey(fila.id))
+          (() {
+            changed = true;
+            return fila.withImagen(imagenes[fila.id]);
+          })()
+        else
+          fila,
+    ];
+    if (!changed) return;
+    final updatedData = EnvasesExistenciasData(
+      columnas: snapshot.data.columnas,
+      filas: updatedFilas,
+      totalesColumna: snapshot.data.totalesColumna,
+      totalGeneral: snapshot.data.totalGeneral,
+      pendientes: snapshot.data.pendientes,
+    );
+    final payload = _encode(
+      EnvasesExistenciasSnapshot(data: updatedData, cachedAt: snapshot.cachedAt),
+    );
+    final writeActive = _active(writing: false);
+    if (writeActive == null) return;
+    await writeActive.database.transaction(() async {
+      final current = await _readStored(writeActive);
+      if (current?.payload != baseline.payload ||
+          current?.cachedAt != baseline.cachedAt) {
+        // Un refresco o otra fusión más reciente ganó la carrera: no se pisa.
+        return;
+      }
+      await writeActive.database.customInsert(
+        'INSERT OR REPLACE INTO $_tableName '
+        '(scope_key, company_id, payload, cached_at) VALUES (?, ?, ?, ?)',
+        variables: [
+          Variable<String>(_company.scopeKey),
+          Variable<int>(_company.companyId),
+          Variable<String>(payload),
+          Variable<String>(baseline.cachedAt),
+        ],
+      );
+    });
+    writeActive.database.notifyUpdates({const TableUpdate(_tableName)});
+  }
+
   String _encode(EnvasesExistenciasSnapshot snapshot) => jsonEncode({
     'version': _snapshotVersion,
     'cached_at': snapshot.cachedAt.toIso8601String(),

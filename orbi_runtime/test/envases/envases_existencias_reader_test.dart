@@ -230,4 +230,95 @@ void main() {
     );
     expect(reader.read, throwsFormatException);
   });
+
+  group('readImages', () {
+    test(
+      'reads product.product.image_128 once fields_get confirms it exists',
+      () async {
+        final calls = <(String model, String method, Map<String, dynamic> kwargs)>[];
+        final reader = EnvasesExistenciasReader(
+          company: company(),
+          transport:
+              ({
+                required String model,
+                required String method,
+                required Map<String, dynamic> kwargs,
+                required Map<String, dynamic> context,
+              }) async {
+                calls.add((model, method, kwargs));
+                if (method == 'fields_get') {
+                  return {
+                    'image_128': {'type': 'binary'},
+                  };
+                }
+                expect(method, 'search_read');
+                return [
+                  {'id': 501, 'image_128': 'Zm90bw=='},
+                  {'id': 502, 'image_128': false},
+                ];
+              },
+        );
+
+        final imagenes = await reader.readImages([501, 502, 503]);
+
+        expect(calls.map((c) => c.$2), ['fields_get', 'search_read']);
+        expect(calls.first.$1, 'product.product');
+        expect(calls.last.$1, 'product.product');
+        expect(imagenes[501], 'Zm90bw==');
+        // `image_128: false` (sin foto) y un id que Odoo no devolvió se leen
+        // igual: sin foto, no roto.
+        expect(imagenes[502], isNull);
+        expect(imagenes[503], isNull);
+      },
+    );
+
+    test(
+      'never calls search_read when fields_get does not confirm image_128',
+      () async {
+        final calls = <String>[];
+        final reader = EnvasesExistenciasReader(
+          company: company(),
+          transport:
+              ({
+                required String model,
+                required String method,
+                required Map<String, dynamic> kwargs,
+                required Map<String, dynamic> context,
+              }) async {
+                calls.add(method);
+                // El servidor no confirma el campo: la respuesta de
+                // fields_get no trae la clave `image_128`.
+                return <String, dynamic>{};
+              },
+        );
+
+        final imagenes = await reader.readImages([501]);
+
+        expect(calls, ['fields_get']);
+        expect(imagenes, isEmpty);
+      },
+    );
+
+    test('returns empty without any call for an empty id set', () async {
+      var callCount = 0;
+      final reader = EnvasesExistenciasReader(
+        company: company(),
+        transport:
+            ({
+              required model,
+              required method,
+              required kwargs,
+              required context,
+            }) async {
+              callCount++;
+              return <String, dynamic>{};
+            },
+      );
+
+      final imagenes = await reader.readImages(const []);
+
+      expect(callCount, 0);
+      expect(imagenes, isEmpty);
+    });
+  });
 }
