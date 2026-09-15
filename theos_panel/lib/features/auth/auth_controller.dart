@@ -113,14 +113,31 @@ abstract interface class SellerPinAuthServicePort {
   Future<void> retainCredentialForPin(AuthProfile profile, bool retained);
 
   /// Entra con la llave retenida de [profile], sin contraseña — ver
-  /// `NativeAuthService.loginWithPinCredential`.
-  Future<AuthServiceResult> loginWithPinCredential(AuthProfile profile);
+  /// `NativeAuthService.loginWithPinCredential`. `offline: true` reactiva sin
+  /// red, sujeto al límite de días de `OfflineAllowanceStore` — ver esa
+  /// clase y `AuthNotifier.loginWithSellerPin`, que decide cuándo reintentar
+  /// así.
+  Future<AuthServiceResult> loginWithPinCredential(
+    AuthProfile profile, {
+    bool offline = false,
+  });
 
   /// Los perfiles de este servidor+base con llave retenida para el PIN —
   /// lo que el selector de `PinLoginScreen` necesita para ofrecer «elegir
   /// entre los usuarios con PIN de este equipo». Ver
   /// `NativeAuthService.pinRetainedProfilesFor`.
   Future<List<AuthProfile>> pinRetainedProfilesFor(
+    String serverUrl,
+    String database,
+  );
+
+  /// Todos los perfiles de este servidor+base cuya llave SIGUE físicamente
+  /// en el almacén — sin filtrar por retención. El "método de lectura del
+  /// servicio" que `migrateLegacyPinRetention`
+  /// (`legacy_pin_retention_migration.dart`) usa para encontrar cuentas que
+  /// enrolaron un PIN ANTES de que existiera la retención — ver
+  /// `NativeAuthService.profilesWithStoredKeyFor`.
+  Future<List<AuthProfile>> profilesWithStoredKeyFor(
     String serverUrl,
     String database,
   );
@@ -167,6 +184,24 @@ Future<AuthServiceResult> restoreOnce(AuthServicePort service) async {
 bool _isExplicitCredentialRejection(Object error) =>
     error is OdooAuthenticationException;
 
+/// Primero en línea; si falla con algo que NO es un rechazo EXPLÍCITO de la
+/// credencial ([_isExplicitCredentialRejection] — el MISMO clasificador que
+/// [restoreOnce] usa para `restore()`, nunca duplicado aquí), reintenta sin
+/// conexión, sujeto al mismo límite de días que `restore(offline: true)`
+/// aplica (`OfflineAllowanceStore`, `orbi_runtime`). Un rechazo explícito se
+/// relanza tal cual — nunca cae al respaldo offline, igual que [restoreOnce].
+Future<AuthServiceResult> _loginWithPinOnlineThenOffline(
+  SellerPinAuthServicePort service,
+  AuthProfile profile,
+) async {
+  try {
+    return await service.loginWithPinCredential(profile);
+  } catch (error) {
+    if (_isExplicitCredentialRejection(error)) rethrow;
+    return service.loginWithPinCredential(profile, offline: true);
+  }
+}
+
 class NativeAuthServicePort
     implements
         AuthServicePort,
@@ -184,13 +219,20 @@ class NativeAuthServicePort
   Future<void> retainCredentialForPin(AuthProfile profile, bool retained) =>
       service.retainCredentialForPin(profile, retained);
   @override
-  Future<AuthServiceResult> loginWithPinCredential(AuthProfile profile) =>
-      service.loginWithPinCredential(profile);
+  Future<AuthServiceResult> loginWithPinCredential(
+    AuthProfile profile, {
+    bool offline = false,
+  }) => service.loginWithPinCredential(profile, offline: offline);
   @override
   Future<List<AuthProfile>> pinRetainedProfilesFor(
     String serverUrl,
     String database,
   ) => service.pinRetainedProfilesFor(serverUrl, database);
+  @override
+  Future<List<AuthProfile>> profilesWithStoredKeyFor(
+    String serverUrl,
+    String database,
+  ) => service.profilesWithStoredKeyFor(serverUrl, database);
   @override
   Future<void> renewApiKeyIfNeeded() => service.renewApiKeyIfNeeded();
   @override
@@ -551,6 +593,19 @@ class AuthNotifier extends Notifier<AuthViewState> {
   /// [restrictSnapshotToSellerPin] recorta el resultado — un usuario
   /// multirrol nunca sale de aquí con Caja, Aprobaciones o Administración
   /// sólo por haber entrado con PIN.
+  ///
+  /// 🔴 Ampliado el 14-sep-2026 («Orbi debe funcionar offline: el cambio de
+  /// usuario con PIN también»): primero intenta en línea
+  /// (`loginWithPinCredential(profile)`); si eso falla con un error que NO
+  /// es un rechazo EXPLÍCITO de la credencial, reintenta con
+  /// `offline: true` — la MISMA regla que [restoreOnce] aplica a
+  /// `restore()`, reutilizando su propio clasificador
+  /// ([_isExplicitCredentialRejection]) en vez de duplicarlo. Un rechazo
+  /// explícito se relanza tal cual y cae al mismo `catch` de abajo. El tope
+  /// de vendedor de más abajo se aplica igual sobre el resultado de
+  /// cualquiera de los dos caminos, y `offlineExpired` llega hasta
+  /// [_fromAttempt]/[_fromResult], que ya lo traduce con el mismo mensaje
+  /// que usa el acceso normal ([offlineAllowanceMessageFor]).
   Future<void> loginWithSellerPin(AuthProfile profile) async {
     state = const AuthViewState(status: AuthControllerStatus.loading);
     final service = _service;
@@ -563,7 +618,10 @@ class AuthNotifier extends Notifier<AuthViewState> {
     }
     final pinService = service as SellerPinAuthServicePort;
     try {
-      final result = await pinService.loginWithPinCredential(profile);
+      final result = await _loginWithPinOnlineThenOffline(
+        pinService,
+        profile,
+      );
       if (!ref.mounted) return;
       final restored = _fromAttempt(result);
       if (restored.status != AuthControllerStatus.authenticated &&
@@ -615,6 +673,22 @@ class AuthNotifier extends Notifier<AuthViewState> {
   ) async {
     if (_service case final SellerPinAuthServicePort port) {
       return port.pinRetainedProfilesFor(serverUrl, database);
+    }
+    return const [];
+  }
+
+  /// Los perfiles de [serverUrl]/[database] cuya llave sigue físicamente en
+  /// el almacén, SIN filtrar por retención — lo que
+  /// `migrateLegacyPinRetention` (`legacy_pin_retention_migration.dart`) usa
+  /// para encontrar credenciales de un PIN enrolado ANTES de que existiera
+  /// la retención. Lista vacía, nunca un error, en cualquier plataforma sin
+  /// [SellerPinAuthServicePort].
+  Future<List<AuthProfile>> profilesWithStoredKeyFor(
+    String serverUrl,
+    String database,
+  ) async {
+    if (_service case final SellerPinAuthServicePort port) {
+      return port.profilesWithStoredKeyFor(serverUrl, database);
     }
     return const [];
   }

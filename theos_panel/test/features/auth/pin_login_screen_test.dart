@@ -79,8 +79,10 @@ final class _FakeAuthService
   Future<void> close() async {}
 
   @override
-  Future<AuthServiceResult> loginWithPinCredential(AuthProfile profile) async =>
-      result;
+  Future<AuthServiceResult> loginWithPinCredential(
+    AuthProfile profile, {
+    bool offline = false,
+  }) async => result;
 
   @override
   Future<void> retainCredentialForPin(AuthProfile profile, bool retained) async {}
@@ -98,6 +100,12 @@ final class _FakeAuthService
     }
     return [profile];
   }
+
+  @override
+  Future<List<AuthProfile>> profilesWithStoredKeyFor(
+    String serverUrl,
+    String database,
+  ) async => const [];
 }
 
 // --- Selector «elegir entre los usuarios con PIN de este equipo para esa
@@ -161,7 +169,10 @@ final class _MultiUserFakeAuthService
   Future<void> close() async {}
 
   @override
-  Future<AuthServiceResult> loginWithPinCredential(AuthProfile profile) async {
+  Future<AuthServiceResult> loginWithPinCredential(
+    AuthProfile profile, {
+    bool offline = false,
+  }) async {
     lastAuthenticatedAs = profile;
     return AuthServiceResult(
       status: AuthServiceStatus.authenticated,
@@ -184,6 +195,12 @@ final class _MultiUserFakeAuthService
       serverUrl == _profileA.serverUrl && database == _profileA.database
       ? [_profileA, _profileB]
       : const [];
+
+  @override
+  Future<List<AuthProfile>> profilesWithStoredKeyFor(
+    String serverUrl,
+    String database,
+  ) async => const [];
 }
 
 Future<SharedPreferences> _preferencesWithPin(

@@ -1704,6 +1704,29 @@ final class NativeAuthService {
     String serverUrl,
     String database,
   ) async {
+    final profiles = await _profilesByLoginFor(serverUrl, database);
+    return [
+      for (final profile in profiles)
+        if (_isPinRetained(
+          AppScope(
+            appId: appId,
+            installationId: profile.installationId,
+            normalizedServerUrl: profile.serverUrl,
+            database: profile.database,
+            userId: profile.userId,
+          ),
+        ))
+          profile,
+    ];
+  }
+
+  /// Base compartida de [pinRetainedProfilesFor] y [profilesWithStoredKeyFor]:
+  /// todos los perfiles por-login de [serverUrl]/[database], sin ningún
+  /// filtro adicional todavía.
+  Future<List<AuthProfile>> _profilesByLoginFor(
+    String serverUrl,
+    String database,
+  ) async {
     final normalizedServerUrl = AppScope(
       appId: appId,
       installationId: 'profile',
@@ -1721,6 +1744,27 @@ final class NativeAuthService {
           profile.database != database) {
         continue;
       }
+      profiles.add(profile);
+    }
+    return profiles;
+  }
+
+  /// Todos los perfiles por-login de [serverUrl]/[database] cuya llave SIGUE
+  /// físicamente en el almacén — a diferencia de [pinRetainedProfilesFor],
+  /// SIN filtrar por si esa llave está retenida para el PIN. Es el "método
+  /// de lectura del servicio" que la migración de PIN de theos_panel
+  /// (`migrateLegacyPinRetention`, `legacy_pin_retention_migration.dart`)
+  /// usa para encontrar, credencial por credencial, quién enroló un PIN
+  /// ANTES de que existiera la retención — y decidir con
+  /// [retainCredentialForPin] a quién marcar, sin mover `PinCredentialStore`
+  /// a este paquete (frontera de paquetes, 14-sep-2026).
+  Future<List<AuthProfile>> profilesWithStoredKeyFor(
+    String serverUrl,
+    String database,
+  ) async {
+    final profiles = await _profilesByLoginFor(serverUrl, database);
+    final withKey = <AuthProfile>[];
+    for (final profile in profiles) {
       final scope = AppScope(
         appId: appId,
         installationId: profile.installationId,
@@ -1728,9 +1772,19 @@ final class NativeAuthService {
         database: profile.database,
         userId: profile.userId,
       );
-      if (_isPinRetained(scope)) profiles.add(profile);
+      try {
+        final secret = await _credentialStore.read(
+          scope,
+          profile.credentialReference,
+        );
+        if (secret != null && secret.isNotEmpty) withKey.add(profile);
+      } catch (_) {
+        // Un almacén que no responde para ESTE perfil se lee como "sin
+        // llave" — igual que [hasStoredCredential] trata un fallo de
+        // lectura, nunca como un error que tumbe el resto del recorrido.
+      }
     }
-    return profiles;
+    return withKey;
   }
 
   /// Si el almacén seguro todavía tiene una llave utilizable para [profile].
@@ -1883,18 +1937,38 @@ final class NativeAuthService {
   /// [forgetStoredCredential] o con quitar el PIN
   /// ([retainCredentialForPin] con `false`).
   ///
-  /// Delega en [loginWithApiKey] con `persistCredential: _isRemembered(scope)`
-  /// para dejar la bandera de «recordada» EXACTAMENTE como estaba — esta
-  /// llamada nunca decide por su cuenta si la credencial pasa a estar
-  /// recordada, y `passwordDerived: false` porque la llave no se acaba de
-  /// emitir a cambio de una contraseña, es la que ya tenía este usuario.
+  /// [offline] decide el camino:
   ///
-  /// 🔴 Sin conexión NO se resuelve aquí: [loginWithApiKey] sondea el
-  /// servidor (`_apiKeyIdentityProbe`) y, sin red, su error se propaga tal
-  /// cual — el llamador (la pantalla de PIN) lo trata como cualquier otro
-  /// fallo de red. El camino de PIN sin conexión, con el límite de días
-  /// parametrizable, lo cablea aparte el trabajo en curso sobre [restore].
-  Future<AuthServiceResult> loginWithPinCredential(AuthProfile profile) async {
+  /// * `false` (por omisión): delega en [loginWithApiKey] con
+  ///   `persistCredential: _isRemembered(scope)` para dejar la bandera de
+  ///   «recordada» EXACTAMENTE como estaba — esta llamada nunca decide por su
+  ///   cuenta si la credencial pasa a estar recordada — y
+  ///   `passwordDerived: false` porque la llave no se acaba de emitir a
+  ///   cambio de una contraseña, es la que ya tenía este usuario.
+  ///   [loginWithApiKey] sondea el servidor (`_apiKeyIdentityProbe`) y, sin
+  ///   red, su error se propaga tal cual — es el llamador (`AuthNotifier
+  ///   .loginWithSellerPin`) quien decide si reintenta con `offline: true`,
+  ///   reutilizando el mismo clasificador de errores que `restoreOnce`.
+  /// * `true`: decisión del dueño, 14-sep-2026 («Orbi debe funcionar
+  ///   offline: el cambio de usuario con PIN también, respetando el límite
+  ///   de días»). ANTES de activar nada se evalúa
+  ///   [OfflineAllowanceStore.evaluate] para ESTE servidor+base+userId
+  ///   exactos — el mismo guardián que `restore(offline: true)` aplica a la
+  ///   sesión que ya estaba abierta. Si no está `allowed`, se devuelve
+  ///   `offlineExpired` con el motivo, sin tocar la marca de sesión abierta,
+  ///   la base local ni la cola offline. Si está `allowed`, se escribe la
+  ///   marca de sesión abierta DE ESTE USUARIO (igual que [loginWithApiKey],
+  ///   `passwordDerived: false` — esta llave nunca vino de una contraseña
+  ///   recién tecleada), se guarda [profile] como el último y se activa con
+  ///   [SessionRuntimePort.activate] SIN llave — `client == null` sigue
+  ///   siendo el contrato de "sin sesión en línea" que usan los puertos de
+  ///   bodega, lectura y catálogos (ver `restore(offline: true)`). Nunca
+  ///   llama a [OfflineAllowanceStore.recordOnline]: seguir sin conexión no
+  ///   debe fingir un contacto real con el servidor.
+  Future<AuthServiceResult> loginWithPinCredential(
+    AuthProfile profile, {
+    bool offline = false,
+  }) async {
     final scope = AppScope(
       appId: appId,
       installationId: profile.installationId,
@@ -1911,6 +1985,45 @@ final class NativeAuthService {
     );
     if (secret == null || secret.isEmpty) {
       return const AuthServiceResult(status: AuthServiceStatus.required);
+    }
+    if (offline) {
+      final allowance = await _offlineAllowance.evaluate(
+        serverUrl: scope.normalizedServerUrl,
+        database: profile.database,
+        userId: scope.userId,
+        deviceNowUtc: _deviceNow().toUtc(),
+      );
+      if (!allowance.isAllowed) {
+        return AuthServiceResult(
+          status: AuthServiceStatus.offlineExpired,
+          offlineAllowance: allowance,
+        );
+      }
+      // Guarda al usuario que acaba de cambiar por PIN como "el último" y
+      // abre SU marca de sesión — igual que `loginWithApiKey`, salvo que
+      // aquí no hay ningún RPC que confirme la conexión (por eso nunca se
+      // llama a `_offlineAllowance.recordOnline`).
+      await _saveProfile(profile);
+      await _writeOpenSession(
+        serverUrl: scope.normalizedServerUrl,
+        database: profile.database,
+        userId: scope.userId,
+        passwordDerived: false,
+      );
+      // Sin conexión no se crea cliente: `client == null` es la señal de
+      // sin sesión en línea que usan los puertos de bodega, lectura y
+      // catálogos (`warehouse_operation_port.dart`, `json2_read_adapters.dart`,
+      // `runtime_catalog_composition.dart`) para rechazar en local, sin
+      // tocar la red.
+      await _sessionRuntime.activate(scope);
+      return AuthServiceResult(
+        status: AuthServiceStatus.restored,
+        scope: scope,
+        profile: profile,
+        capabilities: profile.companyId != null
+            ? await capabilityPort?.offline(scope, profile.companyId!)
+            : null,
+      );
     }
     return loginWithApiKey(
       serverUrl: profile.serverUrl,

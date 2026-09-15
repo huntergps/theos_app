@@ -472,8 +472,14 @@ final class WebSessionAuthService
       _apiKeyPort.retainCredentialForPin(profile, retained);
 
   @override
-  Future<AuthServiceResult> loginWithPinCredential(AuthProfile profile) async {
-    final result = await _apiKeyPort.loginWithPinCredential(profile);
+  Future<AuthServiceResult> loginWithPinCredential(
+    AuthProfile profile, {
+    bool offline = false,
+  }) async {
+    final result = await _apiKeyPort.loginWithPinCredential(
+      profile,
+      offline: offline,
+    );
     if (result.status == AuthServiceStatus.authenticated) {
       _profile = result.profile;
     }
@@ -485,6 +491,12 @@ final class WebSessionAuthService
     String serverUrl,
     String database,
   ) => _apiKeyPort.pinRetainedProfilesFor(serverUrl, database);
+
+  @override
+  Future<List<AuthProfile>> profilesWithStoredKeyFor(
+    String serverUrl,
+    String database,
+  ) => _apiKeyPort.profilesWithStoredKeyFor(serverUrl, database);
 }
 
 final class _SessionIdentityReader implements ActiveIdentityReader {

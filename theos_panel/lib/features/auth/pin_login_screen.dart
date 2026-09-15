@@ -5,10 +5,12 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:orbi_runtime/orbi_runtime.dart' show AuthProfile;
 
-import 'auth_controller.dart';
-import 'pin_credential_store.dart';
+import '../../app/preferences/app_preferences.dart';
 import '../../app/theme/orbi_theme.dart';
 import '../../ui/components/orbi_brand.dart';
+import 'auth_controller.dart';
+import 'legacy_pin_retention_migration.dart';
+import 'pin_credential_store.dart';
 
 /// El tamaño de tecla en modo compacto. Fluent no trae una constante
 /// equivalente a `kMinInteractiveDimension` de Material — 48px sigue siendo
@@ -159,6 +161,20 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
       });
       return;
     }
+    // Migración de una sola vez (decisión del dueño, 14-sep-2026): quien
+    // enroló su PIN ANTES de que existiera la retención no tiene la bandera
+    // y, sin esto, nunca aparecería en el selector de abajo aunque su PIN
+    // siga enrolado y su llave siga en el almacén — ver
+    // legacy_pin_retention_migration.dart. `sharedPreferencesProvider`
+    // siempre está sobreescrito en producción y en las pruebas de esta
+    // pantalla (igual que lo lee `pinCredentialStoreProvider`).
+    await migrateLegacyPinRetention(
+      preferences: ref.read(sharedPreferencesProvider),
+      notifier: notifier,
+      pinCredentialStore: store,
+      serverUrl: profile.serverUrl,
+      database: profile.database,
+    );
     // Selector «elegir entre los usuarios con PIN de este equipo para esa
     // base» (decisión del dueño, 14-sep-2026): candidatos = perfiles de
     // ESTA base (servidor+base del último perfil) cuya llave está retenida

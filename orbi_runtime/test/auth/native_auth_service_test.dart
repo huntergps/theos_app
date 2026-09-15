@@ -2075,4 +2075,127 @@ void main() {
       },
     );
   });
+
+  // --- «Orbi debe funcionar offline: el cambio de usuario con PIN también»
+  // (decisión del dueño, 14-sep-2026) — `loginWithPinCredential(profile,
+  // offline: true)` reactiva sin red, sujeto al MISMO límite de días que
+  // `restore(offline: true)` ya aplica a la sesión que estaba abierta. -----
+  group('PIN de vendedor sin conexión (14-sep-2026)', () {
+    const serverUrl = 'https://erp.test';
+    const database = 'db';
+
+    test(
+      'pin login works offline within the limit',
+      () async {
+        final b = _Backend();
+        final i = _Identity();
+        final bootstrap = _Bootstrap();
+        final (s1, prefs) = await openSession(b, i, _Runtime(), null, bootstrap);
+        final result = await s1.login(
+          serverUrl: serverUrl,
+          database: database,
+          login: 'u',
+          password: 'p',
+          persistCredential: false,
+        );
+        expect(result.status, AuthServiceStatus.authenticated);
+        await s1.retainCredentialForPin(result.profile!, true);
+        await s1.close();
+
+        final r2 = _Runtime()..lastActivateApiKey = 'sentinel-not-cleared';
+        final s2 = reopen(b, prefs, i, r2, null, bootstrap);
+
+        final pinResult = await s2.loginWithPinCredential(
+          result.profile!,
+          offline: true,
+        );
+
+        expect(pinResult.status, AuthServiceStatus.restored);
+        // Sin conexión no se crea cliente: el fake SÍ registra el `apiKey`
+        // que recibió — la prueba comprueba que sigue `null`, nunca que el
+        // fake lo ignoró.
+        expect(r2.lastActivateApiKey, isNull);
+        expect(pinResult.profile!.userId, result.profile!.userId);
+
+        // La marca de sesión abierta quedó escrita para ESTE usuario: un
+        // restore posterior (sin volver a pasar por PIN) reconoce la misma
+        // sesión — nunca "required".
+        final s3 = reopen(b, prefs, i, _Runtime(), null, bootstrap);
+        final restored = await s3.restore(offline: true);
+        expect(restored.status, AuthServiceStatus.restored);
+        expect(restored.profile!.userId, result.profile!.userId);
+      },
+    );
+
+    test(
+      'offline pin login refused after max days',
+      () async {
+        final b = _Backend();
+        final i = _Identity();
+        final bootstrap = _Bootstrap();
+        final (s1, prefs) = await openSession(b, i, _Runtime(), null, bootstrap);
+        final result = await s1.login(
+          serverUrl: serverUrl,
+          database: database,
+          login: 'u',
+          password: 'p',
+          persistCredential: false,
+        );
+        await s1.retainCredentialForPin(result.profile!, true);
+        final scope = result.scope!;
+        // Fuerza "la última conexión buena fue hace 4 días" — pasa el
+        // máximo por omisión de 3.
+        await OfflineAllowanceStore(prefs).recordOnline(
+          serverUrl: scope.normalizedServerUrl,
+          database: scope.database,
+          userId: scope.userId,
+          nowUtc: DateTime.now().toUtc().subtract(const Duration(days: 4)),
+        );
+        await s1.close();
+
+        final freshRuntime = _Runtime();
+        final s2 = reopen(b, prefs, i, freshRuntime, null, bootstrap);
+        final pinResult = await s2.loginWithPinCredential(
+          result.profile!,
+          offline: true,
+        );
+
+        expect(pinResult.status, AuthServiceStatus.offlineExpired);
+        expect(
+          pinResult.offlineAllowance?.status,
+          OfflineAllowanceStatus.expired,
+        );
+        // Nunca se activó el runtime — la sesión sigue sin abrirse.
+        expect(freshRuntime.active, isNull);
+      },
+    );
+
+    test(
+      'offline pin login requires pin retention',
+      () async {
+        final b = _Backend();
+        final i = _Identity();
+        final bootstrap = _Bootstrap();
+        final (s1, prefs) = await openSession(b, i, _Runtime(), null, bootstrap);
+        final result = await s1.login(
+          serverUrl: serverUrl,
+          database: database,
+          login: 'u',
+          password: 'p',
+          persistCredential: false,
+        );
+        // Nunca se llama a retainCredentialForPin: la bandera de retención
+        // por PIN nunca se puso para este usuario.
+        await s1.close();
+
+        final s2 = reopen(b, prefs, i, _Runtime(), null, bootstrap);
+        final pinResult = await s2.loginWithPinCredential(
+          result.profile!,
+          offline: true,
+        );
+
+        expect(pinResult.status, AuthServiceStatus.required);
+      },
+    );
+  });
 }

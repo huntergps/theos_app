@@ -82,18 +82,20 @@ final class _RestorableMultiroleAuth
   Future<void> close() async {}
 
   @override
-  Future<AuthServiceResult> loginWithPinCredential(AuthProfile profile) async =>
-      AuthServiceResult(
-        status: AuthServiceStatus.authenticated,
-        profile: _profile,
-        capabilities: CapabilitySnapshot(
-          scopeKey: 'scope',
-          companyId: 1,
-          revision: 1,
-          fetchedAt: DateTime.utc(2026, 9, 12),
-          permissions: const ['seller', 'cashier'],
-        ),
-      );
+  Future<AuthServiceResult> loginWithPinCredential(
+    AuthProfile profile, {
+    bool offline = false,
+  }) async => AuthServiceResult(
+    status: AuthServiceStatus.authenticated,
+    profile: _profile,
+    capabilities: CapabilitySnapshot(
+      scopeKey: 'scope',
+      companyId: 1,
+      revision: 1,
+      fetchedAt: DateTime.utc(2026, 9, 12),
+      permissions: const ['seller', 'cashier'],
+    ),
+  );
 
   @override
   Future<void> retainCredentialForPin(
@@ -109,6 +111,12 @@ final class _RestorableMultiroleAuth
       serverUrl == _profile.serverUrl && database == _profile.database
       ? [_profile]
       : const [];
+
+  @override
+  Future<List<AuthProfile>> profilesWithStoredKeyFor(
+    String serverUrl,
+    String database,
+  ) async => const [];
 }
 
 void main() {

@@ -71,8 +71,16 @@ final class _FakePinAuthService
   Future<void> close() async {}
 
   @override
-  Future<AuthServiceResult> loginWithPinCredential(AuthProfile profile) async =>
-      result;
+  Future<AuthServiceResult> loginWithPinCredential(
+    AuthProfile profile, {
+    bool offline = false,
+  }) async => result;
+
+  @override
+  Future<List<AuthProfile>> profilesWithStoredKeyFor(
+    String serverUrl,
+    String database,
+  ) async => const [];
 
   @override
   Future<void> retainCredentialForPin(
@@ -111,6 +119,147 @@ final class _ThrowingAuthService implements AuthServicePort {
 
   @override
   Future<void> close() async {}
+}
+
+/// «Orbi debe funcionar offline: el cambio de usuario con PIN también»
+/// (decisión del dueño, 14-sep-2026). `loginWithPinCredential(profile)` (en
+/// línea, `offline` por omisión `false`) revienta con un problema de
+/// transporte SIN relación con la credencial — exactamente la causa que
+/// [restoreOnce] deja caer al respaldo offline para `restore()`, y que
+/// `AuthNotifier.loginWithSellerPin` debe dejar caer igual aquí.
+/// `loginWithPinCredential(profile, offline: true)` sí tiene éxito.
+final class _OnlineFailsThenOfflineWorksPinAuthService
+    implements AuthServicePort, SellerPinAuthServicePort {
+  var onlineAttempts = 0;
+  var offlineAttempts = 0;
+
+  @override
+  Future<AuthServiceResult> login({
+    required String serverUrl,
+    required String database,
+    required String login,
+    required String password,
+  }) async => const AuthServiceResult(status: AuthServiceStatus.required);
+
+  @override
+  Future<AuthServiceResult> restore({bool offline = false}) async =>
+      const AuthServiceResult(status: AuthServiceStatus.required);
+
+  @override
+  Future<AuthProfile?> loadProfile() async => null;
+
+  @override
+  Future<AuthProfile?> loadProfileFor(
+    String serverUrl,
+    String database,
+  ) async => null;
+
+  @override
+  Future<void> close() async {}
+
+  @override
+  Future<AuthServiceResult> loginWithPinCredential(
+    AuthProfile profile, {
+    bool offline = false,
+  }) async {
+    if (!offline) {
+      onlineAttempts++;
+      throw const OdooConnectionException('socket de red no disponible');
+    }
+    offlineAttempts++;
+    return AuthServiceResult(
+      status: AuthServiceStatus.restored,
+      profile: profile,
+      capabilities: _snapshot(const ['seller', 'cashier']),
+    );
+  }
+
+  @override
+  Future<void> retainCredentialForPin(
+    AuthProfile profile,
+    bool retained,
+  ) async {}
+
+  @override
+  Future<List<AuthProfile>> pinRetainedProfilesFor(
+    String serverUrl,
+    String database,
+  ) async => const [];
+
+  @override
+  Future<List<AuthProfile>> profilesWithStoredKeyFor(
+    String serverUrl,
+    String database,
+  ) async => const [];
+}
+
+/// El servidor rechaza EXPLÍCITAMENTE la credencial — nunca debe reintentarse
+/// sin conexión, igual que [restoreOnce] nunca cae al respaldo offline ante
+/// [OdooAuthenticationException].
+final class _ExplicitRejectionPinAuthService
+    implements AuthServicePort, SellerPinAuthServicePort {
+  var onlineAttempts = 0;
+  var offlineAttempts = 0;
+
+  @override
+  Future<AuthServiceResult> login({
+    required String serverUrl,
+    required String database,
+    required String login,
+    required String password,
+  }) async => const AuthServiceResult(status: AuthServiceStatus.required);
+
+  @override
+  Future<AuthServiceResult> restore({bool offline = false}) async =>
+      const AuthServiceResult(status: AuthServiceStatus.required);
+
+  @override
+  Future<AuthProfile?> loadProfile() async => null;
+
+  @override
+  Future<AuthProfile?> loadProfileFor(
+    String serverUrl,
+    String database,
+  ) async => null;
+
+  @override
+  Future<void> close() async {}
+
+  @override
+  Future<AuthServiceResult> loginWithPinCredential(
+    AuthProfile profile, {
+    bool offline = false,
+  }) async {
+    if (!offline) {
+      onlineAttempts++;
+      throw const OdooAuthenticationException('la clave ya no vale');
+    }
+    // Nunca debería llamarse: un rechazo explícito no debe caer aquí.
+    offlineAttempts++;
+    return AuthServiceResult(
+      status: AuthServiceStatus.restored,
+      profile: profile,
+      capabilities: _snapshot(const ['seller']),
+    );
+  }
+
+  @override
+  Future<void> retainCredentialForPin(
+    AuthProfile profile,
+    bool retained,
+  ) async {}
+
+  @override
+  Future<List<AuthProfile>> pinRetainedProfilesFor(
+    String serverUrl,
+    String database,
+  ) async => const [];
+
+  @override
+  Future<List<AuthProfile>> profilesWithStoredKeyFor(
+    String serverUrl,
+    String database,
+  ) async => const [];
 }
 
 CapabilitySnapshot _snapshot(List<String> permissions) => CapabilitySnapshot(
@@ -396,6 +545,68 @@ void main() {
         final state = container.read(authControllerProvider);
         expect(state.status, AuthControllerStatus.error);
         expect(state.message, contains('no está disponible'));
+      },
+    );
+
+    // --- «Orbi debe funcionar offline: el cambio de usuario con PIN
+    // también» (decisión del dueño, 14-sep-2026). --------------------------
+    test(
+      'seller pin falls back offline when the network fails and still '
+      'clamps permissions',
+      () async {
+        final fake = _OnlineFailsThenOfflineWorksPinAuthService();
+        final container = ProviderContainer(
+          overrides: [authServiceProvider.overrideWithValue(fake)],
+        );
+        addTearDown(container.dispose);
+
+        await container
+            .read(authControllerProvider.notifier)
+            .loginWithSellerPin(_profile);
+
+        expect(fake.onlineAttempts, 1);
+        expect(
+          fake.offlineAttempts,
+          1,
+          reason:
+              'un problema de transporte SIN relación con la credencial '
+              'debe caer al respaldo offline — la misma regla que '
+              'restoreOnce aplica a restore().',
+        );
+        final state = container.read(authControllerProvider);
+        expect(state.status, AuthControllerStatus.restored);
+        // El tope de vendedor se aplica igual por el camino offline: caja +
+        // vendedor entra sólo como vendedor.
+        expect(state.capabilities?.permissions, {'seller'});
+        expect(state.capabilities?.permissions.contains('cashier'), isFalse);
+      },
+    );
+
+    test(
+      'explicit credential rejection never falls back offline',
+      () async {
+        final fake = _ExplicitRejectionPinAuthService();
+        final container = ProviderContainer(
+          overrides: [authServiceProvider.overrideWithValue(fake)],
+        );
+        addTearDown(container.dispose);
+
+        await container
+            .read(authControllerProvider.notifier)
+            .loginWithSellerPin(_profile);
+
+        expect(fake.onlineAttempts, 1);
+        expect(
+          fake.offlineAttempts,
+          0,
+          reason:
+              'un rechazo EXPLÍCITO del servidor no debe disparar el '
+              'fallback ciego a offline=true.',
+        );
+        expect(
+          container.read(authControllerProvider).status,
+          AuthControllerStatus.error,
+        );
       },
     );
   });
