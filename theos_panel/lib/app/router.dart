@@ -685,10 +685,30 @@ final scopeSyncAutoResyncTriggerProvider = Provider<SyncAutoResyncTrigger?>((
   final coordinator = ref.watch(scopeSyncCoordinatorProvider);
   if (coordinator == null) return null;
   final foreground = ref.watch(_appForegroundSignalProvider);
+  final onlineController = StreamController<bool>.broadcast();
+  // 🔴 Orden que importa (14-sep-2026): un `StreamController.broadcast()`
+  // DESCARTA cualquier `add()` que llegue sin oyentes todavía suscritos —
+  // no lo bufferea para el próximo `listen()`. `ref.listen(...,
+  // fireImmediately: true)` invoca su callback de forma SÍNCRONA, así que
+  // si ese `add()` corriera antes de que el disparador se construya (y por
+  // tanto se suscriba en su propio constructor), el valor inicial de la
+  // señal de red se perdería para siempre: el disparador arrancaría
+  // creyendo "sin red" hasta el próximo cambio real, aunque la red ya
+  // estuviera disponible al activar el scope (lo normal). Por eso el
+  // disparador se construye ANTES del `ref.listen` que alimenta su
+  // controlador. Perder este primer valor aquí no hace daño de verdad —
+  // este disparador sólo actúa por FILO, nunca por el valor inicial— pero
+  // el orden se deja igual que en los otros dos bloques de este archivo que
+  // sí dependen de él (`scopeSyncQueuedOperationTriggerProvider` y
+  // `scopeSyncPeriodicBackupTriggerProvider`, más abajo).
+  final trigger = SyncAutoResyncTrigger(
+    coordinator: coordinator,
+    online: onlineController.stream,
+    foreground: foreground.stream,
+  );
   // `StreamProvider` no expone su `Stream` crudo en esta versión de
   // Riverpod; `ref.listen` es el puente hacia el `Stream<bool>` que
   // `SyncAutoResyncTrigger` necesita, sin envolver nada en `AsyncValue`.
-  final onlineController = StreamController<bool>.broadcast();
   ref.listen<AsyncValue<NetworkSignal>>(networkSignalProvider, (
     previous,
     next,
@@ -698,11 +718,6 @@ final scopeSyncAutoResyncTriggerProvider = Provider<SyncAutoResyncTrigger?>((
       onlineController.add(signal.hasNetwork);
     }
   }, fireImmediately: true);
-  final trigger = SyncAutoResyncTrigger(
-    coordinator: coordinator,
-    online: onlineController.stream,
-    foreground: foreground.stream,
-  );
   ref.onDispose(() {
     trigger.dispose();
     unawaited(onlineController.close());
@@ -736,11 +751,26 @@ final scopeSyncQueuedOperationTriggerProvider =
       final queue = ref.watch(_sessionQueueProvider);
       if (coordinator == null || queue == null) return null;
 
+      final onlineController = StreamController<bool>.broadcast();
+      // El disparador se construye (y se suscribe) ANTES del `ref.listen`
+      // que alimenta este controlador — ver la nota sobre el orden en
+      // `scopeSyncAutoResyncTriggerProvider`, arriba en este archivo. Aquí
+      // SÍ importa de verdad: a diferencia de ese disparador, éste puede
+      // reaccionar a la primera inserción de la cola con la conexión ya
+      // puesta, así que perder el valor inicial de la red (lo normal: la
+      // red ya está disponible al activar el scope) lo dejaría creyendo
+      // "sin red" y nunca pediría el drenaje — el mismo síntoma que este
+      // bloque existe para resolver.
+      final trigger = SyncQueuedOperationTrigger(
+        coordinator: coordinator,
+        queuedInserts: queue.watchQueuedInserts(),
+        online: onlineController.stream,
+      );
+
       // Mismo puente red → Stream<bool> que los otros bloques aislados de
       // este archivo: `ref.listen` es el único modo de leer el
       // `Stream<bool>` crudo de un `StreamProvider` en esta versión de
       // Riverpod.
-      final onlineController = StreamController<bool>.broadcast();
       ref.listen<AsyncValue<NetworkSignal>>(networkSignalProvider, (
         previous,
         next,
@@ -751,11 +781,6 @@ final scopeSyncQueuedOperationTriggerProvider =
         }
       }, fireImmediately: true);
 
-      final trigger = SyncQueuedOperationTrigger(
-        coordinator: coordinator,
-        queuedInserts: queue.watchQueuedInserts(),
-        online: onlineController.stream,
-      );
       ref.onDispose(() {
         unawaited(trigger.dispose());
         unawaited(onlineController.close());
@@ -919,11 +944,29 @@ final scopeSyncPeriodicBackupTriggerProvider =
   final foreground = ref.watch(_appForegroundSignalProvider);
   final realtime = ref.watch(scopeRealtimeSyncCoordinatorProvider);
 
-  // Mismo puente red → Stream<bool> que los otros dos bloques aislados de
-  // este archivo (auto-resync y tiempo real): `ref.listen` es el único modo
-  // de leer el `Stream<bool>` crudo de un `StreamProvider` en esta versión
-  // de Riverpod.
   final onlineController = StreamController<bool>.broadcast();
+  final realtimeStatusController =
+      StreamController<RealtimeStatus>.broadcast();
+
+  // El disparador se construye (y se suscribe a las tres señales) ANTES de
+  // alimentar `onlineController`/`realtimeStatusController` — ver la nota
+  // sobre el orden en `scopeSyncAutoResyncTriggerProvider`, arriba en este
+  // archivo. Aquí también importa de verdad: si el tiempo real ya estaba
+  // caído (o sin sesión) y la red ya presente al activar el scope, perder
+  // esos valores iniciales dejaría el respaldo de 5 minutos desarmado para
+  // siempre, sin ningún error visible — con la misma cara de "no pasa
+  // nada" que el resto de huecos de esta auditoría.
+  final trigger = SyncPeriodicBackupTrigger(
+    coordinator: coordinator,
+    online: onlineController.stream,
+    foreground: foreground.stream,
+    realtimeStatus: realtimeStatusController.stream,
+  );
+
+  // Mismo puente red → Stream<bool> que los otros dos bloques aislados de
+  // este archivo (auto-resync y drenar la cola): `ref.listen` es el único
+  // modo de leer el `Stream<bool>` crudo de un `StreamProvider` en esta
+  // versión de Riverpod.
   ref.listen<AsyncValue<NetworkSignal>>(networkSignalProvider, (
     previous,
     next,
@@ -938,7 +981,6 @@ final scopeSyncPeriodicBackupTriggerProvider =
   // poder armarse igual — se alimenta con un estado fijo de "no conectado",
   // nunca `live`, para que el temporizador nunca quede desarmado por falta
   // de señal.
-  final realtimeStatusController = StreamController<RealtimeStatus>.broadcast();
   if (realtime != null) {
     final subscription = realtime.status.listen(realtimeStatusController.add);
     ref.onDispose(() => unawaited(subscription.cancel()));
@@ -947,12 +989,6 @@ final scopeSyncPeriodicBackupTriggerProvider =
     realtimeStatusController.add(RealtimeStatus.offline);
   }
 
-  final trigger = SyncPeriodicBackupTrigger(
-    coordinator: coordinator,
-    online: onlineController.stream,
-    foreground: foreground.stream,
-    realtimeStatus: realtimeStatusController.stream,
-  );
   ref.onDispose(() {
     unawaited(trigger.dispose());
     unawaited(onlineController.close());
