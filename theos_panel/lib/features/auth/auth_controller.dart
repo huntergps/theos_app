@@ -98,6 +98,34 @@ abstract interface class StoredCredentialAuthServicePort {
   Future<bool> hasStoredCredential(AuthProfile profile);
 }
 
+/// «El PIN mantiene el tope de vendedor al entrar o cambiar de usuario»
+/// (decisión del dueño, 14-sep-2026): reutiliza la llave RETENIDA para el PIN
+/// de [AuthProfile] — nunca la contraseña, nunca `restore()` — para volver a
+/// entrar sin red adicional más allá del sondeo de identidad que el propio
+/// login ya necesita. Optional extension, igual que
+/// [StoredCredentialAuthServicePort]: un servicio de prueba/embebido que no
+/// la implementa simplemente no puede ofrecer PIN (ver
+/// [AuthNotifier.loginWithSellerPin]).
+abstract interface class SellerPinAuthServicePort {
+  /// Marca (o desmarca) la llave de [profile] como retenida para el PIN —
+  /// ver `NativeAuthService.retainCredentialForPin`. `true` al enrolar un
+  /// PIN, `false` al quitarlo.
+  Future<void> retainCredentialForPin(AuthProfile profile, bool retained);
+
+  /// Entra con la llave retenida de [profile], sin contraseña — ver
+  /// `NativeAuthService.loginWithPinCredential`.
+  Future<AuthServiceResult> loginWithPinCredential(AuthProfile profile);
+
+  /// Los perfiles de este servidor+base con llave retenida para el PIN —
+  /// lo que el selector de `PinLoginScreen` necesita para ofrecer «elegir
+  /// entre los usuarios con PIN de este equipo». Ver
+  /// `NativeAuthService.pinRetainedProfilesFor`.
+  Future<List<AuthProfile>> pinRetainedProfilesFor(
+    String serverUrl,
+    String database,
+  );
+}
+
 /// Performs exactly one online restore and, only when that attempt fails, one
 /// explicit offline restore. Callers own when this is invoked (normally cold
 /// start); it never schedules a retry loop.
@@ -146,11 +174,23 @@ class NativeAuthServicePort
         CredentialPolicyAuthServicePort,
         ExpirableAuthServicePort,
         RenewableAuthServicePort,
-        StoredCredentialAuthServicePort {
+        StoredCredentialAuthServicePort,
+        SellerPinAuthServicePort {
   NativeAuthServicePort(this.service);
   final NativeAuthService service;
   @override
   Future<void> closeExpired() => service.closeExpired();
+  @override
+  Future<void> retainCredentialForPin(AuthProfile profile, bool retained) =>
+      service.retainCredentialForPin(profile, retained);
+  @override
+  Future<AuthServiceResult> loginWithPinCredential(AuthProfile profile) =>
+      service.loginWithPinCredential(profile);
+  @override
+  Future<List<AuthProfile>> pinRetainedProfilesFor(
+    String serverUrl,
+    String database,
+  ) => service.pinRetainedProfilesFor(serverUrl, database);
   @override
   Future<void> renewApiKeyIfNeeded() => service.renewApiKeyIfNeeded();
   @override
@@ -495,6 +535,88 @@ class AuthNotifier extends Notifier<AuthViewState> {
         message: describeSessionRestoreFailure(error).flatten(),
       );
     }
+  }
+
+  /// Entra por PIN de vendedor reutilizando la llave RETENIDA de [profile]
+  /// (`SellerPinAuthServicePort.loginWithPinCredential`) — nunca `restore()`,
+  /// que sigue siendo el camino de [restoreForSellerPin] para quien todavía
+  /// lo use. Reemplaza a `restoreForSellerPin` como puerta de
+  /// `PinLoginScreen` porque ahora hay más de un usuario con PIN posible en
+  /// el mismo dispositivo (selector, decisión del dueño 14-sep-2026): la
+  /// pantalla ya no puede asumir que «el último perfil» es a quien el PIN
+  /// tecleado pertenece.
+  ///
+  /// Aplica EXACTAMENTE el mismo tope de vendedor que [restoreForSellerPin]:
+  /// [snapshotAllowsSellerPin] decide si se puede entrar en absoluto, y
+  /// [restrictSnapshotToSellerPin] recorta el resultado — un usuario
+  /// multirrol nunca sale de aquí con Caja, Aprobaciones o Administración
+  /// sólo por haber entrado con PIN.
+  Future<void> loginWithSellerPin(AuthProfile profile) async {
+    state = const AuthViewState(status: AuthControllerStatus.loading);
+    final service = _service;
+    if (service is! SellerPinAuthServicePort) {
+      state = const AuthViewState(
+        status: AuthControllerStatus.error,
+        message: 'El PIN no está disponible en esta plataforma.',
+      );
+      return;
+    }
+    final pinService = service as SellerPinAuthServicePort;
+    try {
+      final result = await pinService.loginWithPinCredential(profile);
+      if (!ref.mounted) return;
+      final restored = _fromAttempt(result);
+      if (restored.status != AuthControllerStatus.authenticated &&
+          restored.status != AuthControllerStatus.restored) {
+        state = restored;
+        return;
+      }
+      final capabilities = restored.capabilities;
+      if (capabilities == null || !snapshotAllowsSellerPin(capabilities)) {
+        state = const AuthViewState(
+          status: AuthControllerStatus.error,
+          message: 'Este usuario no tiene acceso de vendedor por PIN.',
+        );
+        return;
+      }
+      state = AuthViewState(
+        status: restored.status,
+        profile: restored.profile,
+        capabilities: restrictSnapshotToSellerPin(capabilities),
+      );
+    } catch (error) {
+      if (!ref.mounted) return;
+      // Mismas causas que [login]/[restore]: nada aquí se deriva del PIN
+      // mismo, así que no filtra qué PIN existe o no.
+      state = AuthViewState(
+        status: AuthControllerStatus.error,
+        message: describeLoginFailure(error).flatten(),
+      );
+    }
+  }
+
+  /// Marca (o desmarca) la llave de [profile] como retenida para el PIN de
+  /// vendedor — `null`-safe: en una plataforma sin
+  /// [SellerPinAuthServicePort] simplemente no hace nada (ningún PIN que
+  /// ofrecer ahí tampoco).
+  Future<void> retainCredentialForPin(AuthProfile profile, bool retained) async {
+    if (_service case final SellerPinAuthServicePort port) {
+      await port.retainCredentialForPin(profile, retained);
+    }
+  }
+
+  /// Los perfiles de [serverUrl]/[database] con llave retenida para el PIN —
+  /// lo que `PinLoginScreen` cruza contra `PinCredentialStore.isEnrolled`
+  /// para construir su selector. Lista vacía, nunca un error, en cualquier
+  /// plataforma sin [SellerPinAuthServicePort].
+  Future<List<AuthProfile>> pinRetainedProfilesFor(
+    String serverUrl,
+    String database,
+  ) async {
+    if (_service case final SellerPinAuthServicePort port) {
+      return port.pinRetainedProfilesFor(serverUrl, database);
+    }
+    return const [];
   }
 
   /// Ends the session. This is the single path behind both "Cerrar sesión" and

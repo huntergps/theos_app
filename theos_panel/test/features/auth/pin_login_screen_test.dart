@@ -42,7 +42,16 @@ CapabilitySnapshot _snapshot(List<String> permissions) => CapabilitySnapshot(
   permissions: permissions,
 );
 
-final class _FakeAuthService implements AuthServicePort {
+// PinLoginScreen ya no llama a `restoreForSellerPin` (que usaba `restore()`):
+// con el selector de usuarios (decisión del dueño, 14-sep-2026) puede haber
+// más de un perfil con PIN en el mismo dispositivo, así que la pantalla entra
+// con `AuthNotifier.loginWithSellerPin`, que exige `SellerPinAuthServicePort`.
+// Este fake lo implementa reutilizando el mismo `result` que ya modelaba
+// login/restore, y `pinRetainedProfilesFor` ofrece exactamente el perfil
+// bajo prueba — igual que antes del selector, para que un solo usuario en
+// juego siga preseleccionado sin selector visible.
+final class _FakeAuthService
+    implements AuthServicePort, SellerPinAuthServicePort {
   _FakeAuthService(this.result);
   AuthServiceResult result;
 
@@ -68,6 +77,113 @@ final class _FakeAuthService implements AuthServicePort {
 
   @override
   Future<void> close() async {}
+
+  @override
+  Future<AuthServiceResult> loginWithPinCredential(AuthProfile profile) async =>
+      result;
+
+  @override
+  Future<void> retainCredentialForPin(AuthProfile profile, bool retained) async {}
+
+  @override
+  Future<List<AuthProfile>> pinRetainedProfilesFor(
+    String serverUrl,
+    String database,
+  ) async {
+    final profile = result.profile;
+    if (profile == null ||
+        profile.serverUrl != serverUrl ||
+        profile.database != database) {
+      return const [];
+    }
+    return [profile];
+  }
+}
+
+// --- Selector «elegir entre los usuarios con PIN de este equipo para esa
+// base» (decisión del dueño, 14-sep-2026). ---------------------------------
+const _profileA = AuthProfile(
+  serverUrl: 'https://erp.test',
+  database: 'demo',
+  login: 'user-a',
+  userId: 11,
+  installationId: 'i-1',
+  credentialReference: 'api-key',
+  name: 'Usuario A',
+);
+
+const _profileB = AuthProfile(
+  serverUrl: 'https://erp.test',
+  database: 'demo',
+  login: 'user-b',
+  userId: 12,
+  installationId: 'i-1',
+  credentialReference: 'api-key',
+  name: 'Usuario B',
+);
+
+/// Simula dos usuarios con PIN retenido en la misma base: `loadProfile()`
+/// devuelve el ÚLTIMO perfil (A, igual que `NativeAuthService.loadProfile`),
+/// pero `pinRetainedProfilesFor` ofrece los dos — lo que hace aparecer el
+/// selector. `loginWithPinCredential` entra exactamente con el perfil que se
+/// le pasó, nunca con "el último" — así una prueba puede comprobar que elegir
+/// a B en el selector de verdad activa a B, no a A.
+final class _MultiUserFakeAuthService
+    implements AuthServicePort, SellerPinAuthServicePort {
+  AuthProfile? lastAuthenticatedAs;
+
+  @override
+  Future<AuthServiceResult> login({
+    required String serverUrl,
+    required String database,
+    required String login,
+    required String password,
+  }) async => const AuthServiceResult(status: AuthServiceStatus.required);
+
+  @override
+  Future<AuthServiceResult> restore({bool offline = false}) async =>
+      AuthServiceResult(
+        status: AuthServiceStatus.restored,
+        profile: _profileA,
+        capabilities: _snapshot(const ['seller']),
+      );
+
+  @override
+  Future<AuthProfile?> loadProfile() async => _profileA;
+
+  @override
+  Future<AuthProfile?> loadProfileFor(
+    String serverUrl,
+    String database,
+  ) async => _profileA;
+
+  @override
+  Future<void> close() async {}
+
+  @override
+  Future<AuthServiceResult> loginWithPinCredential(AuthProfile profile) async {
+    lastAuthenticatedAs = profile;
+    return AuthServiceResult(
+      status: AuthServiceStatus.authenticated,
+      profile: profile,
+      capabilities: _snapshot(const ['seller']),
+    );
+  }
+
+  @override
+  Future<void> retainCredentialForPin(
+    AuthProfile profile,
+    bool retained,
+  ) async {}
+
+  @override
+  Future<List<AuthProfile>> pinRetainedProfilesFor(
+    String serverUrl,
+    String database,
+  ) async =>
+      serverUrl == _profileA.serverUrl && database == _profileA.database
+      ? [_profileA, _profileB]
+      : const [];
 }
 
 Future<SharedPreferences> _preferencesWithPin(
@@ -485,4 +601,69 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.byKey(const Key('pin-key-1')), findsOneWidget);
   });
+
+  testWidgets(
+    'lists pin users of this database and verifies the chosen one',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final preferences = await SharedPreferences.getInstance();
+      final store = PinCredentialStore(preferences);
+      await store.enroll(
+        pinScopeKeyFor(
+          _profileA.serverUrl,
+          _profileA.database,
+          _profileA.login,
+        ),
+        '1111',
+      );
+      await store.enroll(
+        pinScopeKeyFor(
+          _profileB.serverUrl,
+          _profileB.database,
+          _profileB.login,
+        ),
+        '2222',
+      );
+      final service = _MultiUserFakeAuthService();
+      var granted = false;
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authServiceProvider.overrideWithValue(service),
+            sharedPreferencesProvider.overrideWithValue(preferences),
+          ],
+          child: FluentApp(
+            theme: OrbiFluentTheme.light,
+            home: PinLoginScreen(onSellerAccessGranted: () => granted = true),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      // Dos usuarios con PIN en esta base: el selector aparece.
+      expect(find.byKey(const Key('pin-user-selector')), findsOneWidget);
+      expect(find.textContaining('Usuario A'), findsOneWidget);
+
+      // Elige a B en el selector.
+      await tester.tap(find.byKey(const Key('pin-user-selector')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Usuario B (user-b)').last);
+      await tester.pumpAndSettle();
+
+      // El PIN de A, con B ya elegido, falla: se verifica contra el scope
+      // de B, no el de A.
+      await _tapDigits(tester, '1111');
+      await tester.pump();
+      expect(find.text('PIN inválido. Intenta nuevamente.'), findsOneWidget);
+      await tester.pumpAndSettle();
+      expect(granted, isFalse);
+
+      // El PIN correcto de B entra como B, nunca como A.
+      await _tapDigits(tester, '2222');
+      await tester.pumpAndSettle();
+      expect(granted, isTrue);
+      expect(service.lastAuthenticatedAs?.login, 'user-b');
+    },
+  );
 }

@@ -12,6 +12,7 @@ import '../features/account/user_preferences_dialog.dart';
 import '../features/auth/auth_controller.dart';
 import '../features/auth/login_screen.dart';
 import '../features/auth/login_failure_messages.dart';
+import '../features/auth/pin_credential_store.dart';
 import '../features/auth/route_access_messages.dart';
 import '../ui/components/copyable_message.dart';
 import '../features/auth/route_access_policy.dart';
@@ -61,6 +62,22 @@ import 'collection_scope_composition.dart';
 import 'scope_catalog_repository.dart';
 import 'business_composition_factory.dart';
 import 'envases_composition.dart';
+
+/// Pasado como `extra` a `context.go('/login', extra: startInPinModeExtra)`
+/// para que "Cambiar de usuario" ([confirmSwitchWorkspaceUser]) pueda
+/// aterrizar directo en la puerta de PIN (ACC-02) cuando queda al menos otro
+/// usuario con PIN en esta base — NUNCA una dirección propia: `/login` sigue
+/// siendo la única ruta previa a iniciar sesión que conoce
+/// `RouteAccessPolicy` (ver la nota de clase de `pin_login_screen.dart`:
+/// «PIN only ever makes sense as a sibling of this very form, never as an
+/// address someone could type or bookmark on its own»). Un `context.go`
+/// directo a `/login` sin este `extra` (o tecleando la URL) nunca lo
+/// arrastra consigo.
+const Object startInPinModeExtra = _StartInPinMode();
+
+final class _StartInPinMode {
+  const _StartInPinMode();
+}
 
 final businessCompositionFactoryProvider =
     Provider<OrbiBusinessCompositionFactory>(
@@ -259,9 +276,44 @@ Future<void> confirmSwitchWorkspaceUser(
     ),
   );
   if (confirmed != true) return;
+  // «El PIN mantiene el tope de vendedor al entrar o cambiar de usuario»
+  // (decisión del dueño, 14-sep-2026): si en esta MISMA base queda al menos
+  // OTRO usuario con PIN retenido y enrolado en este equipo, "Cambiar de
+  // usuario" aterriza directo en la puerta de PIN con su selector — nunca
+  // el propio PIN de quien se está yendo, que ya cerró sesión arriba. Sin
+  // otro candidato, cae al acceso normal exactamente como antes.
+  final leavingProfile = ref.read(authControllerProvider).profile;
   ref.read(workspaceLockProvider.notifier).unlock();
   await ref.read(authControllerProvider.notifier).close();
-  if (context.mounted) context.go('/login');
+  if (!context.mounted) return;
+  var startInPin = false;
+  if (leavingProfile != null) {
+    final candidates = await ref
+        .read(authControllerProvider.notifier)
+        .pinRetainedProfilesFor(leavingProfile.serverUrl, leavingProfile.database);
+    PinCredentialStore? pinStore;
+    try {
+      pinStore = ref.read(pinCredentialStoreProvider);
+    } catch (_) {
+      // Embedders/tests may intentionally omit the PIN store.
+    }
+    if (pinStore != null) {
+      final resolvedStore = pinStore;
+      startInPin = candidates.any(
+        (candidate) =>
+            candidate.login != leavingProfile.login &&
+            resolvedStore.isEnrolled(
+              pinScopeKeyFor(
+                candidate.serverUrl,
+                candidate.database,
+                candidate.login,
+              ),
+            ),
+      );
+    }
+  }
+  if (!context.mounted) return;
+  context.go('/login', extra: startInPin ? startInPinModeExtra : null);
 }
 
 final businessCompositionProvider = Provider<OrbiBusinessComposition?>((ref) {
@@ -1593,7 +1645,12 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
-      GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
+      GoRoute(
+        path: '/login',
+        builder: (context, state) => LoginScreen(
+          initialPinMode: state.extra == startInPinModeExtra,
+        ),
+      ),
       ShellRoute(
         builder: (context, state, child) => Consumer(
           builder: (context, ref, _) {

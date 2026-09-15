@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:orbi_runtime/orbi_runtime.dart' show AuthProfile;
 
 import 'auth_controller.dart';
 import 'pin_credential_store.dart';
@@ -108,6 +109,14 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
   Timer? _countdownTimer;
   Timer? _invalidPinResetTimer;
 
+  /// Los usuarios de esta base con PIN enrolado y retenido, para el
+  /// selector «elegir entre los usuarios con PIN de este equipo para esa
+  /// base» (decisión del dueño, 14-sep-2026). Un solo elemento cuando sólo
+  /// hay un usuario — el selector no se muestra ([_buildUserSelector]) pero
+  /// [_selectedProfile] sigue siendo ese único perfil.
+  List<AuthProfile> _candidates = const [];
+  AuthProfile? _selectedProfile;
+
   @override
   void initState() {
     super.initState();
@@ -122,9 +131,8 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
   }
 
   Future<void> _bootstrap() async {
-    final profile = await ref
-        .read(authControllerProvider.notifier)
-        .loadProfile();
+    final notifier = ref.read(authControllerProvider.notifier);
+    final profile = await notifier.loadProfile();
     if (!mounted) return;
     if (profile == null) {
       setState(() {
@@ -133,6 +141,105 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
       });
       return;
     }
+    PinCredentialStore? store;
+    try {
+      store = ref.read(pinCredentialStoreProvider);
+    } catch (_) {
+      // Embedders/tests may intentionally omit the PIN store.
+    }
+    if (store == null) {
+      setState(() {
+        _scopeKey = pinScopeKeyFor(
+          profile.serverUrl,
+          profile.database,
+          profile.login,
+        );
+        _phase = _PinPhase.blocked;
+        _blockedMessage = _kNotEnrolledMessage;
+      });
+      return;
+    }
+    // Selector «elegir entre los usuarios con PIN de este equipo para esa
+    // base» (decisión del dueño, 14-sep-2026): candidatos = perfiles de
+    // ESTA base (servidor+base del último perfil) cuya llave está retenida
+    // para el PIN Y que además tienen un PIN de 4 dígitos enrolado en este
+    // equipo — la retención por sí sola no basta, un usuario puede haber
+    // retenido la llave sin haber configurado nunca un PIN.
+    var candidates = await notifier.pinRetainedProfilesFor(
+      profile.serverUrl,
+      profile.database,
+    );
+    final resolvedStore = store;
+    candidates = candidates
+        .where(
+          (p) => resolvedStore.isEnrolled(
+            pinScopeKeyFor(p.serverUrl, p.database, p.login),
+          ),
+        )
+        .toList(growable: false);
+    if (candidates.isEmpty) {
+      // Compatibilidad: un PIN enrolado ANTES de que existiera la
+      // retención (o un servicio embebido que no implementa el selector,
+      // como el de las pruebas de esta pantalla) no aparece en
+      // `pinRetainedProfilesFor`. Sigue ofreciendo el ÚLTIMO perfil, como
+      // hacía esta pantalla antes del selector, si su propio PIN está
+      // enrolado.
+      final legacyScopeKey = pinScopeKeyFor(
+        profile.serverUrl,
+        profile.database,
+        profile.login,
+      );
+      if (resolvedStore.isEnrolled(legacyScopeKey)) {
+        candidates = [profile];
+      }
+    }
+    if (candidates.isEmpty) {
+      setState(() {
+        _scopeKey = pinScopeKeyFor(
+          profile.serverUrl,
+          profile.database,
+          profile.login,
+        );
+        _phase = _PinPhase.blocked;
+        _blockedMessage = _kNotEnrolledMessage;
+      });
+      return;
+    }
+    final preselected = candidates.length == 1
+        ? candidates.first
+        : candidates.firstWhere(
+            (p) => p.login == profile.login,
+            orElse: () => candidates.first,
+          );
+    final scopeKey = pinScopeKeyFor(
+      preselected.serverUrl,
+      preselected.database,
+      preselected.login,
+    );
+    final attempts = resolvedStore.readAttempts(scopeKey);
+    final now = DateTime.now();
+    setState(() {
+      _candidates = candidates;
+      _selectedProfile = preselected;
+      _scopeKey = scopeKey;
+      if (attempts.isLockedAt(now)) {
+        _startLockout(attempts.lockedUntil!);
+      } else {
+        _phase = _PinPhase.entering;
+      }
+    });
+  }
+
+  /// Cambia a quién se le está verificando el PIN, desde el selector —
+  /// nunca mientras se está verificando o bloqueado. El PIN tecleado hasta
+  /// ahora y cualquier error se descartan: son de la persona anterior.
+  void _onSelectCandidate(String? login) {
+    if (login == null || _phase != _PinPhase.entering) return;
+    final profile = _candidates.firstWhere(
+      (p) => p.login == login,
+      orElse: () => _selectedProfile!,
+    );
+    if (profile.login == _selectedProfile?.login) return;
     final scopeKey = pinScopeKeyFor(
       profile.serverUrl,
       profile.database,
@@ -144,24 +251,16 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
     } catch (_) {
       // Embedders/tests may intentionally omit the PIN store.
     }
-    if (store == null || !store.isEnrolled(scopeKey)) {
-      setState(() {
-        _scopeKey = scopeKey;
-        _phase = _PinPhase.blocked;
-        _blockedMessage = _kNotEnrolledMessage;
-      });
-      return;
-    }
-    final attempts = store.readAttempts(scopeKey);
-    final now = DateTime.now();
     setState(() {
+      _selectedProfile = profile;
       _scopeKey = scopeKey;
-      if (attempts.isLockedAt(now)) {
-        _startLockout(attempts.lockedUntil!);
-      } else {
-        _phase = _PinPhase.entering;
-      }
+      _pin = '';
+      _errorMessage = null;
     });
+    final attempts = store?.readAttempts(scopeKey);
+    if (attempts != null && attempts.isLockedAt(DateTime.now())) {
+      setState(() => _startLockout(attempts.lockedUntil!));
+    }
   }
 
   void _startLockout(DateTime until) {
@@ -240,7 +339,11 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
       return;
     }
     await store.clearAttempts(scopeKey);
-    await ref.read(authControllerProvider.notifier).restoreForSellerPin();
+    final selected = _selectedProfile;
+    if (selected == null) return;
+    await ref
+        .read(authControllerProvider.notifier)
+        .loginWithSellerPin(selected);
     if (!mounted) return;
     final state = ref.read(authControllerProvider);
     final succeeded =
@@ -545,6 +648,10 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
           ),
           textAlign: TextAlign.center,
         ),
+        if (_candidates.length > 1) ...[
+          SizedBox(height: compact ? OrbiTheme.space8 : OrbiTheme.space16),
+          _buildUserSelector(context),
+        ],
         SizedBox(height: compact ? OrbiTheme.space12 : OrbiTheme.space24),
         _buildDots(context),
         if (_errorMessage != null) ...[
@@ -560,6 +667,34 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
             ),
           ),
         ],
+      ],
+    );
+  }
+
+  /// «Elegir entre los usuarios con PIN de este equipo para esa base»
+  /// (decisión del dueño, 14-sep-2026). Sólo se llama cuando hay más de un
+  /// candidato — con uno solo, [_selectedProfile] ya viene preseleccionado
+  /// y este selector no aporta nada. `ComboBox` en vez de un widget propio:
+  /// fluent_ui ya decide el estilo (orden del dueño, 12-sep-2026).
+  Widget _buildUserSelector(BuildContext context) {
+    final selected = _selectedProfile;
+    return ComboBox<String>(
+      key: const Key('pin-user-selector'),
+      value: selected?.login,
+      isExpanded: true,
+      onChanged: _phase == _PinPhase.entering ? _onSelectCandidate : null,
+      items: [
+        for (final candidate in _candidates)
+          ComboBoxItem<String>(
+            key: Key('pin-user-option-${candidate.login}'),
+            value: candidate.login,
+            child: Text(
+              (candidate.name != null && candidate.name!.trim().isNotEmpty)
+                  ? '${candidate.name} (${candidate.login})'
+                  : candidate.login,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
       ],
     );
   }

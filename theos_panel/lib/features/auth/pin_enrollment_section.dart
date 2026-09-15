@@ -238,6 +238,18 @@ class _PinEnrollmentSectionState extends ConsumerState<PinEnrollmentSection> {
     setState(() => _busy = true);
     try {
       await store.enroll(scopeKey, pin);
+      // «El PIN mantiene el tope de vendedor al entrar o cambiar de
+      // usuario» (decisión del dueño, 14-sep-2026): retiene la llave de la
+      // sesión ABIERTA de este mismo usuario para que el PIN pueda
+      // reutilizarla después de cerrar sesión, sin volver a pedir
+      // contraseña. Best effort — un fallo aquí nunca debe deshacer el PIN
+      // que sí se guardó arriba; sólo el enrolamiento local es obligatorio.
+      final profile = ref.read(authControllerProvider).profile;
+      if (profile != null) {
+        await ref
+            .read(authControllerProvider.notifier)
+            .retainCredentialForPin(profile, true);
+      }
       if (!mounted) return;
       setState(() {
         _busy = false;
@@ -291,6 +303,13 @@ class _PinEnrollmentSectionState extends ConsumerState<PinEnrollmentSection> {
       _notice = null;
     });
     await store.forget(scopeKey);
+    // Igual que al enrolar: quita la retención de la llave para el PIN
+    // (`retainCredentialForPin(..., false)`) — con la sesión de este mismo
+    // usuario todavía abierta, así que nunca la revoca ni la borra, sólo dice
+    // que el PIN ya no puede reutilizarla.
+    await ref
+        .read(authControllerProvider.notifier)
+        .retainCredentialForPin(profile, false);
     if (!mounted) return;
     setState(() {
       _busy = false;

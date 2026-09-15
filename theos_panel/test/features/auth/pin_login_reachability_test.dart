@@ -33,10 +33,20 @@ const _profile = AuthProfile(
 
 /// Simulates a device that already went through a real Workspace login once:
 /// `loadProfile()`/`loadProfileFor()` return the stored profile, and
-/// `restore()` (the ONLY entry point `restoreForSellerPin` is allowed to use)
-/// answers with the full multirole snapshot. `login()` is intentionally never
-/// exercised by this test — PIN must never call it.
-final class _RestorableMultiroleAuth implements AuthServicePort {
+/// `restore()` answers with the full multirole snapshot. `login()` is
+/// intentionally never exercised by this test — PIN must never call it.
+///
+/// 🔴 Adaptado el 14-sep-2026 (selector de usuarios con PIN): `PinLoginScreen`
+/// dejó de llamar a `restoreForSellerPin` (que usaba `restore()`) porque con
+/// el selector puede haber más de un perfil con PIN en el mismo dispositivo
+/// — ahora entra con `AuthNotifier.loginWithSellerPin`, que exige
+/// `SellerPinAuthServicePort`. Este fake lo implementa: `loginWithPinCredential`
+/// reutiliza exactamente el mismo snapshot multirol que ya daba `restore()`
+/// (el PIN sigue sin poder llamar a `login()`), y `pinRetainedProfilesFor`
+/// ofrece [_profile] — igual que antes del selector, un único usuario
+/// preseleccionado sin selector visible.
+final class _RestorableMultiroleAuth
+    implements AuthServicePort, SellerPinAuthServicePort {
   @override
   Future<AuthServiceResult> login({
     required String serverUrl,
@@ -70,6 +80,35 @@ final class _RestorableMultiroleAuth implements AuthServicePort {
 
   @override
   Future<void> close() async {}
+
+  @override
+  Future<AuthServiceResult> loginWithPinCredential(AuthProfile profile) async =>
+      AuthServiceResult(
+        status: AuthServiceStatus.authenticated,
+        profile: _profile,
+        capabilities: CapabilitySnapshot(
+          scopeKey: 'scope',
+          companyId: 1,
+          revision: 1,
+          fetchedAt: DateTime.utc(2026, 9, 12),
+          permissions: const ['seller', 'cashier'],
+        ),
+      );
+
+  @override
+  Future<void> retainCredentialForPin(
+    AuthProfile profile,
+    bool retained,
+  ) async {}
+
+  @override
+  Future<List<AuthProfile>> pinRetainedProfilesFor(
+    String serverUrl,
+    String database,
+  ) async =>
+      serverUrl == _profile.serverUrl && database == _profile.database
+      ? [_profile]
+      : const [];
 }
 
 void main() {

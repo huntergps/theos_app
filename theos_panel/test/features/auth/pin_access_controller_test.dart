@@ -34,6 +34,59 @@ final class _FakeAuthService implements AuthServicePort {
   Future<void> close() async {}
 }
 
+/// Igual que [_FakeAuthService] pero además implementa
+/// [SellerPinAuthServicePort], para probar `AuthNotifier.loginWithSellerPin`
+/// — el camino nuevo que `PinLoginScreen` usa desde el selector de usuarios
+/// (14-sep-2026), en vez de `restoreForSellerPin`/`restore()`.
+/// `loginWithPinCredential` entra con exactamente el [result] configurado,
+/// sin mirar el `profile` que se le pasó — lo que importa aquí es el tope de
+/// vendedor que aplica [AuthNotifier], no cuál perfil ganó.
+final class _FakePinAuthService
+    implements AuthServicePort, SellerPinAuthServicePort {
+  _FakePinAuthService(this.result);
+  AuthServiceResult result;
+
+  @override
+  Future<AuthServiceResult> login({
+    required String serverUrl,
+    required String database,
+    required String login,
+    required String password,
+  }) async => const AuthServiceResult(status: AuthServiceStatus.required);
+
+  @override
+  Future<AuthServiceResult> restore({bool offline = false}) async =>
+      const AuthServiceResult(status: AuthServiceStatus.required);
+
+  @override
+  Future<AuthProfile?> loadProfile() async => result.profile;
+
+  @override
+  Future<AuthProfile?> loadProfileFor(
+    String serverUrl,
+    String database,
+  ) async => result.profile;
+
+  @override
+  Future<void> close() async {}
+
+  @override
+  Future<AuthServiceResult> loginWithPinCredential(AuthProfile profile) async =>
+      result;
+
+  @override
+  Future<void> retainCredentialForPin(
+    AuthProfile profile,
+    bool retained,
+  ) async {}
+
+  @override
+  Future<List<AuthProfile>> pinRetainedProfilesFor(
+    String serverUrl,
+    String database,
+  ) async => const [];
+}
+
 final class _ThrowingAuthService implements AuthServicePort {
   @override
   Future<AuthServiceResult> login({
@@ -239,6 +292,111 @@ void main() {
     expect(
       container.read(authControllerProvider).status,
       AuthControllerStatus.error,
+    );
+  });
+
+  // --- `AuthNotifier.loginWithSellerPin` — el camino del selector de
+  // usuarios (decisión del dueño, 14-sep-2026): mismas garantías que
+  // `restoreForSellerPin` de arriba, pero entrando por
+  // `SellerPinAuthServicePort.loginWithPinCredential` en vez de
+  // `restore()`. -----------------------------------------------------------
+  group('AuthNotifier.loginWithSellerPin', () {
+    test(
+      'seller pin login clamps permissions: caja + vendedor entra sólo '
+      'como vendedor',
+      () async {
+        final fake = _FakePinAuthService(
+          AuthServiceResult(
+            status: AuthServiceStatus.authenticated,
+            profile: _profile,
+            capabilities: _snapshot(const ['seller', 'cashier']),
+          ),
+        );
+        final container = ProviderContainer(
+          overrides: [authServiceProvider.overrideWithValue(fake)],
+        );
+        addTearDown(container.dispose);
+
+        await container
+            .read(authControllerProvider.notifier)
+            .loginWithSellerPin(_profile);
+
+        final state = container.read(authControllerProvider);
+        expect(state.status, AuthControllerStatus.authenticated);
+        expect(state.capabilities?.permissions, {'seller'});
+        expect(state.capabilities?.permissions.contains('cashier'), isFalse);
+      },
+    );
+
+    test(
+      'an account without the seller permission is refused, not "restored" '
+      'with zero capabilities',
+      () async {
+        final fake = _FakePinAuthService(
+          AuthServiceResult(
+            status: AuthServiceStatus.authenticated,
+            profile: _profile,
+            capabilities: _snapshot(const ['cashier']),
+          ),
+        );
+        final container = ProviderContainer(
+          overrides: [authServiceProvider.overrideWithValue(fake)],
+        );
+        addTearDown(container.dispose);
+
+        await container
+            .read(authControllerProvider.notifier)
+            .loginWithSellerPin(_profile);
+
+        final state = container.read(authControllerProvider);
+        expect(state.status, AuthControllerStatus.error);
+        expect(state.capabilities, isNull);
+      },
+    );
+
+    test(
+      'a rejected pin credential (required) surfaces as an error, not a '
+      'silent no-op',
+      () async {
+        final fake = _FakePinAuthService(
+          const AuthServiceResult(status: AuthServiceStatus.required),
+        );
+        final container = ProviderContainer(
+          overrides: [authServiceProvider.overrideWithValue(fake)],
+        );
+        addTearDown(container.dispose);
+
+        await container
+            .read(authControllerProvider.notifier)
+            .loginWithSellerPin(_profile);
+
+        expect(
+          container.read(authControllerProvider).status,
+          AuthControllerStatus.error,
+        );
+      },
+    );
+
+    test(
+      'a platform without SellerPinAuthServicePort refuses PIN outright, '
+      'not with a network attempt through restore()',
+      () async {
+        final fake = _FakeAuthService(
+          const AuthServiceResult(status: AuthServiceStatus.required),
+        );
+        final container = ProviderContainer(
+          overrides: [authServiceProvider.overrideWithValue(fake)],
+        );
+        addTearDown(container.dispose);
+
+        await container
+            .read(authControllerProvider.notifier)
+            .loginWithSellerPin(_profile);
+
+        final state = container.read(authControllerProvider);
+        expect(state.status, AuthControllerStatus.error);
+        expect(state.message, contains('no está disponible'));
+      },
     );
   });
 }

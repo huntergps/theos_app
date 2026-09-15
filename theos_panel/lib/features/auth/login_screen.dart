@@ -113,7 +113,15 @@ double loginOverlayContrastRatio(Color foreground, Color background) {
 }
 
 class LoginScreen extends ConsumerStatefulWidget {
-  const LoginScreen({super.key});
+  const LoginScreen({super.key, this.initialPinMode = false});
+
+  /// Arranca directo en la puerta de PIN (ACC-02) en vez del formulario de
+  /// credenciales — usado por "Cambiar de usuario"
+  /// ([confirmSwitchWorkspaceUser] en `app/router.dart`) cuando queda al
+  /// menos otro usuario con PIN en la misma base. Nunca decide la dirección
+  /// de la pantalla (sigue siendo `/login`): ver la nota de clase de
+  /// `_pinMode` más abajo.
+  final bool initialPinMode;
 
   @override
   ConsumerState<LoginScreen> createState() => _LoginScreenState();
@@ -208,6 +216,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   /// bookmark on its own. See pin_login_screen.dart's class doc: it never
   /// imports app/router, so this screen owns the way back exactly like it
   /// owns the way in.
+  ///
+  /// Semilla desde [LoginScreen.initialPinMode] en [initState] — "Cambiar de
+  /// usuario" es la única llamada que arranca aquí directo (vía el `extra`
+  /// transitorio `startInPinModeExtra`, nunca una URL); todo lo demás
+  /// (tocar "Ingresar con PIN", volver de ACC-02) sigue siendo este mismo
+  /// campo de estado local.
   bool _pinMode = false;
 
   // The database travels with the saved server, not with anything the user
@@ -470,6 +484,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   void initState() {
     super.initState();
+    _pinMode = widget.initialPinMode;
     _readServers();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       LoginPreferences? remembered;

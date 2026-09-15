@@ -173,7 +173,8 @@ final class WebSessionAuthService
         CredentialPolicyAuthServicePort,
         ExpirableAuthServicePort,
         RenewableAuthServicePort,
-        StoredCredentialAuthServicePort {
+        StoredCredentialAuthServicePort,
+        SellerPinAuthServicePort {
   WebSessionAuthService({
     required this.runtime,
     required this.installationIds,
@@ -461,6 +462,29 @@ final class WebSessionAuthService
   @override
   Future<bool> hasStoredCredential(AuthProfile profile) =>
       _apiKeyPort.hasStoredCredential(profile);
+
+  // «El PIN mantiene el tope de vendedor» (decisión del dueño, 14-sep-2026):
+  // mismo mecanismo que en escritorio, compartido vía `NativeAuthService` —
+  // aquí sólo delega, salvo `loginWithPinCredential`, que además tiene que
+  // actualizar `_profile` como ya hace `loginWithStoredCredential` arriba.
+  @override
+  Future<void> retainCredentialForPin(AuthProfile profile, bool retained) =>
+      _apiKeyPort.retainCredentialForPin(profile, retained);
+
+  @override
+  Future<AuthServiceResult> loginWithPinCredential(AuthProfile profile) async {
+    final result = await _apiKeyPort.loginWithPinCredential(profile);
+    if (result.status == AuthServiceStatus.authenticated) {
+      _profile = result.profile;
+    }
+    return result;
+  }
+
+  @override
+  Future<List<AuthProfile>> pinRetainedProfilesFor(
+    String serverUrl,
+    String database,
+  ) => _apiKeyPort.pinRetainedProfilesFor(serverUrl, database);
 }
 
 final class _SessionIdentityReader implements ActiveIdentityReader {

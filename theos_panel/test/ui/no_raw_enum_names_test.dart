@@ -58,6 +58,10 @@ void main() {
     // pone `maxLines`/`overflow`.
     'Text(producto.name)',
     'Text(producto.name,',
+    // El nombre real del usuario (`res.users.name`) en el selector «elegir
+    // entre los usuarios con PIN de este equipo» — `AuthProfile.name`, no un
+    // enum. `pin_login_screen.dart`, decisión del dueño 14-sep-2026.
+    r'${candidate.name} (${candidate.login})',
   };
 
   // Contextos donde el nombre del enum ES el valor correcto porque no se
