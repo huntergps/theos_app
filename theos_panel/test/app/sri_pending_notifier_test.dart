@@ -81,6 +81,10 @@ void main() {
     final runtime = SessionRuntime(
       databaseOwner: owner,
       clientFactory: (_, _) => client,
+      // No es del interés de esta prueba (huella de la base de Odoo,
+      // 14-sep-2026): sin este lector falso, `activate()` le pide
+      // `res.users.create_date` al cliente simulado, que no lo responde.
+      identityReader: (client, scope) async => 'fixed-identity',
     );
     final activation = await runtime.activate(scope, apiKey: 'test-key');
     expect(activation.client, same(client));
