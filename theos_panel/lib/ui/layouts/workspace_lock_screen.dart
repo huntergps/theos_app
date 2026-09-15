@@ -24,6 +24,8 @@ class WorkspaceLockScreen extends StatefulWidget {
     required this.pendingSummary,
     required this.onUnlock,
     this.onSwitchUser,
+    this.onUnlockWithPin,
+    this.pinLength = 4,
   });
 
   /// Identity currently locked. Never the server or database.
@@ -52,18 +54,43 @@ class WorkspaceLockScreen extends StatefulWidget {
   /// desautorizar dispositivo".
   final VoidCallback? onSwitchUser;
 
+  /// Desbloquea con el PIN de vendedor enrolado en este aparato para la
+  /// identidad bloqueada, en vez de la clave — decisión del dueño,
+  /// 14-sep-2026: "al volver, se desbloquea con PIN o con la clave, SIN
+  /// perder la sesión ni lo abierto". `null` cuando esta identidad no tiene
+  /// PIN enrolado en este dispositivo (`PinCredentialStore.isEnrolled`): en
+  /// ese caso la pantalla se queda exactamente como antes, sólo con clave.
+  ///
+  /// Igual que [onUnlock], nunca debe recortar permisos ni pasar por una
+  /// reautenticación completa: es la misma sesión ya autenticada, sólo se
+  /// levanta la compuerta de privacidad. Respeta por su cuenta el límite de
+  /// intentos y el bloqueo temporal de `PinCredentialStore` — esta pantalla
+  /// no sabe nada de eso, sólo llama y muestra si funcionó.
+  final Future<bool> Function(String pin)? onUnlockWithPin;
+
+  /// Cuántos dígitos tiene el PIN — un plano número, no una constante de
+  /// `features/auth`: este archivo sigue sin depender de ninguna
+  /// característica (ver el comentario de [_LockFailurePanel] sobre por qué
+  /// esta pantalla nunca importa nada de `features/`). Quien instancia esto
+  /// (`router.dart`) sí conoce `kSellerPinLength` y lo pasa aquí.
+  final int pinLength;
+
   @override
   State<WorkspaceLockScreen> createState() => _WorkspaceLockScreenState();
 }
 
 class _WorkspaceLockScreenState extends State<WorkspaceLockScreen> {
   final _passwordController = TextEditingController();
+  final _pinController = TextEditingController();
   bool _submitting = false;
+  bool _submittingPin = false;
   _LockFailure? _failure;
+  _LockFailure? _pinFailure;
 
   @override
   void dispose() {
     _passwordController.dispose();
+    _pinController.dispose();
     super.dispose();
   }
 
@@ -107,6 +134,47 @@ class _WorkspaceLockScreenState extends State<WorkspaceLockScreen> {
         guidance:
             'Vuelve a escribirla. Si la cambiaste hace poco, necesitas '
             'conexión para usar la nueva.',
+      );
+    });
+  }
+
+  Future<void> _submitPin() async {
+    final onUnlockWithPin = widget.onUnlockWithPin;
+    if (onUnlockWithPin == null || _submittingPin) return;
+    final pin = _pinController.text;
+    if (pin.isEmpty) {
+      setState(
+        () => _pinFailure = const _LockFailure(
+          title: 'Falta tu PIN',
+          guidance: 'Escríbelo para volver a tu trabajo.',
+        ),
+      );
+      return;
+    }
+    setState(() {
+      _submittingPin = true;
+      _pinFailure = null;
+    });
+    var unlocked = false;
+    try {
+      unlocked = await onUnlockWithPin(pin);
+    } catch (_) {
+      unlocked = false;
+    }
+    if (!mounted) return;
+    if (unlocked) {
+      _pinController.clear();
+      return;
+    }
+    setState(() {
+      _submittingPin = false;
+      // El límite de intentos y el bloqueo temporal los aplica
+      // `PinCredentialStore` por su cuenta; esta pantalla no distingue "PIN
+      // equivocado" de "demasiados intentos" porque no le corresponde saber
+      // cuál de los dos fue — sería repetir la lógica del store aquí.
+      _pinFailure = const _LockFailure(
+        title: 'No se pudo verificar el PIN',
+        guidance: 'Vuelve a escribirlo, o usa tu contraseña.',
       );
     });
   }
@@ -186,6 +254,44 @@ class _WorkspaceLockScreenState extends State<WorkspaceLockScreen> {
                           )
                         : const Text('Desbloquear'),
                   ),
+                  if (widget.onUnlockWithPin != null) ...[
+                    const SizedBox(height: OrbiTheme.space24),
+                    Text(
+                      'o',
+                      textAlign: TextAlign.center,
+                      style: theme.typography.caption,
+                    ),
+                    const SizedBox(height: OrbiTheme.space12),
+                    InfoLabel(
+                      label: 'PIN',
+                      child: TextBox(
+                        key: const Key('workspace-lock-pin'),
+                        controller: _pinController,
+                        obscureText: true,
+                        keyboardType: TextInputType.number,
+                        maxLength: widget.pinLength,
+                        autocorrect: false,
+                        enabled: !_submittingPin,
+                        onSubmitted: (_) => _submitPin(),
+                      ),
+                    ),
+                    if (_pinFailure != null) ...[
+                      const SizedBox(height: OrbiTheme.space12),
+                      _LockFailurePanel(failure: _pinFailure!),
+                    ],
+                    const SizedBox(height: OrbiTheme.space16),
+                    FilledButton(
+                      key: const Key('workspace-unlock-pin-button'),
+                      onPressed: _submittingPin ? null : _submitPin,
+                      child: _submittingPin
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: ProgressRing(strokeWidth: 2),
+                            )
+                          : const Text('Desbloquear con PIN'),
+                    ),
+                  ],
                   if (widget.onSwitchUser != null) ...[
                     const SizedBox(height: OrbiTheme.space8),
                     HyperlinkButton(

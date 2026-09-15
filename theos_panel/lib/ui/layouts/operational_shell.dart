@@ -302,6 +302,8 @@ final class OperationalShell extends StatefulWidget {
     this.locked = false,
     this.onLock,
     this.onUnlock,
+    this.onUnlockWithPin,
+    this.pinLength = 4,
     this.onSwitchUser,
     this.onToggleTheme,
     this.navigationDisplayMode = PaneDisplayMode.auto,
@@ -335,6 +337,16 @@ final class OperationalShell extends StatefulWidget {
   /// Revalida la misma identidad para salir de [locked]. Obligatorio siempre
   /// que haya [onLock]: un bloqueo sin salida deja a alguien encerrado.
   final Future<bool> Function(String password)? onUnlock;
+
+  /// Alternativa a [onUnlock] con el PIN de vendedor enrolado en este
+  /// aparato para la identidad bloqueada — decisión del dueño, 14-sep-2026.
+  /// `null` cuando esa identidad no tiene PIN enrolado aquí: la pantalla de
+  /// bloqueo se queda tal como antes, sólo con clave.
+  final Future<bool> Function(String pin)? onUnlockWithPin;
+
+  /// Cuántos dígitos tiene el PIN de [onUnlockWithPin]. Ignorado cuando ese
+  /// callback es `null`.
+  final int pinLength;
 
   /// Cierra el acceso de la identidad actual para que entre otra persona. Es
   /// una acción distinta de bloquear y de cerrar sesión.
@@ -452,6 +464,8 @@ class _OperationalShellState extends State<OperationalShell> {
               userLabel: widget.context.userLabel,
               pendingSummary: widget.context.syncLabel,
               onUnlock: widget.onUnlock!,
+              onUnlockWithPin: widget.onUnlockWithPin,
+              pinLength: widget.pinLength,
               onSwitchUser: widget.onSwitchUser,
             ),
           )
