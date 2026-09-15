@@ -164,6 +164,18 @@ void main() {
 
       expect(find.byType(UserPreferencesDialog), findsOneWidget);
       expect(find.byType(SettingsScreen), findsNothing);
+
+      // Bloqueo por inactividad (14-sep-2026): con sesión de runtime real
+      // (`runtimeSessionProvider` arriba), `_inactivityLockControllerProvider`
+      // arma un `Timer.periodic` de verdad. `UncontrolledProviderScope` no es
+      // dueño del contenedor, así que `flutter_test` no lo desecha al tirar
+      // el árbol de widgets — y `_verifyInvariants()` corre ANTES de que el
+      // `addTearDown(container.dispose)` de arriba llegue a ejecutarse (ver
+      // `_runTestBody` en `flutter_test/binding.dart`). Desechar aquí, dentro
+      // del cuerpo de la prueba, cancela el temporizador a tiempo; el
+      // `addTearDown` sigue de respaldo (`dispose()` es seguro de llamar dos
+      // veces) para cualquier salida anticipada por una aserción fallida.
+      container.dispose();
     },
   );
 
@@ -186,6 +198,10 @@ void main() {
 
       expect(find.byType(SettingsScreen), findsOneWidget);
       expect(find.byType(UserPreferencesDialog), findsNothing);
+
+      // Ver el comentario de la prueba (a) sobre por qué esto debe pasar
+      // AQUÍ y no sólo en el `addTearDown` de arriba.
+      container.dispose();
     },
   );
 
@@ -216,6 +232,10 @@ void main() {
       expect(dot, findsOneWidget);
       final theme = FluentTheme.of(tester.element(dot));
       expect(dotColor(tester), theme.resources.systemFillColorCritical);
+
+      // Ver el comentario de la prueba (a) sobre por qué esto debe pasar
+      // AQUÍ y no sólo en el `addTearDown` de arriba.
+      container.dispose();
     },
   );
 
@@ -254,6 +274,10 @@ void main() {
       );
       expect(presenceOps, hasLength(1));
       expect(presenceOps.first.values, {'status': 'away'});
+
+      // Ver el comentario de la prueba (a) sobre por qué esto debe pasar
+      // AQUÍ y no sólo en el `addTearDown` de arriba.
+      container.dispose();
     },
   );
 
@@ -277,5 +301,9 @@ void main() {
       findsNothing,
     );
     expect(find.text('Estado'), findsNothing);
+
+    // Ver el comentario de la prueba (a) sobre por qué esto debe pasar AQUÍ
+    // y no sólo en el `addTearDown` de arriba.
+    container.dispose();
   });
 }

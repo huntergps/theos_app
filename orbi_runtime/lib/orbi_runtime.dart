@@ -36,6 +36,7 @@ export 'src/notifications/installation_system_id_registry.dart';
 export 'src/notifications/system_notification_presenter.dart';
 export 'src/notifications/runtime_notification_inbox.dart';
 export 'src/session/session_runtime.dart';
+export 'src/security/inactivity_lock_trigger.dart';
 export 'src/warehouse/warehouse_operation_port.dart';
 export 'src/warehouse/stock_quant_reader.dart';
 export 'src/warehouse/stock_quant_cache.dart';

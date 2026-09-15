@@ -36,6 +36,7 @@ import '../features/sales/legacy_draft_notice.dart';
 import '../features/settings/settings_screen.dart';
 import 'device_name_store.dart';
 import '../features/orders/orders_screen.dart';
+import '../features/security/inactivity_lock_controller.dart';
 import '../features/orders/orders_contracts.dart';
 import '../features/warehouse/warehouse_screen.dart';
 import '../features/warehouse/warehouse_existences_screen.dart';
@@ -104,9 +105,18 @@ final businessCompositionFactoryProvider =
 /// `redirect` re-evaluation, and a future edit could too easily fold it into
 /// that same refresh. Keeping it in its own always-on provider, read only by
 /// the inner `Consumer` that needs it, means locking/unlocking can never
-/// touch navigation at all — not even a `redirect` re-check. It also must
-/// never expire on its own — the shell spec is explicit that no new timeout
-/// is invented here.
+/// touch navigation at all — not even a `redirect` re-check.
+///
+/// 🔴 Este `Notifier` en sí mismo sigue sin inventar ningún plazo — sólo
+/// guarda un `bool`. Lo que SÍ cambió (decisión del dueño, 14-sep-2026,
+/// "Bloqueo automático por inactividad") es que ahora algo más, además del
+/// botón "Bloquear", puede llamar a [WorkspaceLockNotifier.lock]: el
+/// `InactivityLockController` armado en el bloque aislado de más abajo. El
+/// comentario viejo decía que "la especificación del marco es explícita en
+/// que aquí no se inventa ningún plazo nuevo" — esa regla ya no aplica tal
+/// cual: el plazo existe, sólo que vive fuera de este archivo pequeño
+/// (`orbi_runtime`'s `InactivityLockTrigger`) y nunca dentro del propio
+/// `bool`.
 final workspaceLockProvider = NotifierProvider<WorkspaceLockNotifier, bool>(
   WorkspaceLockNotifier.new,
 );
@@ -119,9 +129,45 @@ const _kWorkspaceLockedKey = 'orbi/workspace/locked';
 
 class WorkspaceLockNotifier extends Notifier<bool> {
   @override
-  bool build() =>
-      ref.watch(sharedPreferencesProvider).getBool(_kWorkspaceLockedKey) ??
-      false;
+  bool build() {
+    final preferences = ref.watch(sharedPreferencesProvider);
+    if (preferences.getBool(_kWorkspaceLockedKey) ?? false) return true;
+
+    // Bloqueo automático por inactividad (decisión del dueño, 14-sep-2026):
+    // "la sesión web sobrevive a cerrar la pestaña hasta que salta el
+    // bloqueo por inactividad. Así que si reabres pasado el plazo, debe
+    // aparecer bloqueado." El flag de arriba sólo recuerda un "Bloquear"
+    // manual (o uno automático) de ESTA MISMA apertura — reabrir la pestaña
+    // (o la app) después de vencido el plazo necesita esta segunda cuenta,
+    // hecha con lo único disponible de forma SÍNCRONA en este punto:
+    // `SharedPreferences` (`InactivityLockController` persiste ahí la
+    // última interacción y la última cifra de N conocida; ver
+    // `features/security/inactivity_lock_controller.dart`).
+    final profile = ref.watch(authControllerProvider).profile;
+    if (profile == null) return false;
+    final scopeKey = workspaceUnlockScopeKeyFor(profile);
+    final rawLastInteraction = preferences.getString(
+      inactivityLastInteractionKey(scopeKey),
+    );
+    final lastInteraction = rawLastInteraction == null
+        ? null
+        : DateTime.tryParse(rawLastInteraction)?.toUtc();
+    final minutes =
+        preferences.getInt(inactivityLockMinutesKey(scopeKey)) ??
+        kDefaultInactivityLockMinutes;
+    final locked = shouldStartLocked(
+      persistedLastInteraction: lastInteraction,
+      deviceNow: DateTime.now().toUtc(),
+      lockAfter: Duration(minutes: minutes),
+    );
+    if (locked) {
+      // Deja constancia también en el flag manual: un reload posterior, que
+      // sólo mira ese flag (ver el comentario de arriba), sigue viéndolo
+      // bloqueado sin tener que rehacer esta cuenta.
+      unawaited(preferences.setBool(_kWorkspaceLockedKey, true));
+    }
+    return locked;
+  }
 
   void lock() {
     state = true;
@@ -248,6 +294,51 @@ Future<bool> attemptWorkspaceUnlock(WidgetRef ref, String password) async {
     }
     return false;
   }
+}
+
+/// Revalidates the currently authenticated identity through its enrolled
+/// seller PIN instead of the Workspace password — decision del dueño,
+/// 14-sep-2026: "al volver, se desbloquea con PIN o con la clave, SIN
+/// perder la sesión ni lo abierto: desbloquear con PIN conserva la sesión
+/// con TODOS sus permisos; el tope de vendedor sólo aplica al ENTRAR o
+/// CAMBIAR de usuario con PIN, no al desbloquear."
+///
+/// Deliberately never calls `AuthNotifier` nor touches
+/// `capabilitySnapshotProvider`: this is the same authenticated session as
+/// before locking, just with its privacy gate lowered — exactly like
+/// [attemptWorkspaceUnlock] does for a correct password. The seller-only
+/// ceiling that `restrictSnapshotToSellerPin` applies
+/// (`pin_capability_limiter.dart`) is a property of the PIN *login* screen
+/// (`AuthNotifier.restoreForSellerPin`, the door PIN uses to walk in cold),
+/// never of this unlock path, which never reaches that code at all.
+///
+/// Respects `PinCredentialStore`'s own attempt limit and temporary lockout:
+/// a PIN already locked out refuses outright, without even hashing the
+/// candidate — same shape as `WorkspaceUnlockStore.verify`'s
+/// [WorkspaceUnlockVerdict.lockedOut].
+///
+/// Returns `false` (never throws) when this identity has no PIN enrolled on
+/// this device — the lock screen only offers the PIN field once
+/// [PinCredentialStore.isEnrolled] already said yes, so reaching this branch
+/// would mean it was enrolled a moment ago and just got removed elsewhere.
+Future<bool> attemptWorkspaceUnlockWithPin(WidgetRef ref, String pin) async {
+  final profile = ref.read(authControllerProvider).profile;
+  if (profile == null) return false;
+  final store = ref.read(pinCredentialStoreProvider);
+  final scopeKey = pinScopeKeyFor(
+    profile.serverUrl,
+    profile.database,
+    profile.login,
+  );
+  if (!store.isEnrolled(scopeKey)) return false;
+  if (store.readAttempts(scopeKey).isLockedAt(DateTime.now())) return false;
+  if (store.verify(scopeKey, pin)) {
+    await store.clearAttempts(scopeKey);
+    ref.read(workspaceLockProvider.notifier).unlock();
+    return true;
+  }
+  await store.registerFailure(scopeKey);
+  return false;
 }
 
 /// "Cambiar de usuario": a distinct, explained action from "Cerrar sesión"
@@ -1005,6 +1096,89 @@ String? _offlineAllowanceMessageFor(OfflineAllowance allowance) {
           'conéctate a internet.';
   }
 }
+
+// --- Bloque aislado: bloqueo por inactividad (14-sep-2026) -----------------
+// Decisión del dueño: tras N minutos sin interacción real (puntero o
+// teclado, ver `InactivityLockController`), Orbi se bloquea solo — igual
+// que pulsar "Bloquear" a mano (`workspaceLockProvider.notifier.lock()`). N
+// sale de `ClientPolicyService.snapshot.inactivityLockMinutes` (15 por
+// omisión, ver `kDefaultInactivityLockMinutes`), cacheado aparte en
+// `SharedPreferences` para poder leerlo de forma síncrona la próxima vez
+// que se abra la app (`WorkspaceLockNotifier.build()`, más arriba).
+//
+// `ref.read`, nunca `ref.watch`, sobre `_clientPolicyServiceProvider` y
+// `_clientPolicyRevisionProvider`: este provider sólo necesita LEER la
+// cifra más fresca cuando cambia, no reconstruirse cada vez que cambia —
+// reconstruirse tiraría y volvería a armar el `InactivityLockController`
+// (y sus listeners globales de puntero/teclado) cada 15 minutos, o cada vez
+// que la app vuelve a primer plano, perdiendo el estado en memoria de su
+// `InactivityLockTrigger` sin ninguna necesidad.
+final _inactivityLockControllerProvider =
+    Provider<InactivityLockController?>((ref) {
+  final profile = ref.watch(authControllerProvider).profile;
+  // Mismo resguardo que `_clientPolicyServiceProvider` y
+  // `scopeSyncCoordinatorProvider`: exige sesión de runtime compuesta
+  // (`RuntimeMetadataStore`, Drift), NUNCA cliente/red — una sesión sin
+  // conexión sigue teniendo `active`. Sin este resguardo, cualquier prueba
+  // de widgets que sólo autentique el perfil (sin componer la sesión de
+  // runtime, lo normal en este paquete) arma igual un `Timer.periodic` real
+  // que `flutter_test` marca como fuga: `_verifyInvariants()` corre ANTES
+  // de que los `addTearDown` de esas pruebas alcancen a llamar
+  // `container.dispose()` (ver `_runTestBody` en `flutter_test/binding.dart`).
+  final active = ref.watch(runtimeSessionProvider)?.active;
+  if (profile == null || active == null) return null;
+  final preferences = ref.watch(sharedPreferencesProvider);
+  final scopeKey = workspaceUnlockScopeKeyFor(profile);
+
+  int currentMinutes() =>
+      ref.read(_clientPolicyServiceProvider)?.snapshot.inactivityLockMinutes ??
+      preferences.getInt(inactivityLockMinutesKey(scopeKey)) ??
+      kDefaultInactivityLockMinutes;
+
+  final controller = InactivityLockController(
+    scopeKey: scopeKey,
+    preferences: preferences,
+    lockAfter: () => Duration(minutes: currentMinutes()),
+    onLock: () => ref.read(workspaceLockProvider.notifier).lock(),
+  );
+
+  void persistMinutesIfKnown() {
+    final service = ref.read(_clientPolicyServiceProvider);
+    if (service == null) return;
+    unawaited(
+      preferences.setInt(
+        inactivityLockMinutesKey(scopeKey),
+        service.snapshot.inactivityLockMinutes,
+      ),
+    );
+  }
+
+  persistMinutesIfKnown();
+  // Cada sincronización real de `ClientPolicyService` (login, primer plano,
+  // o el propio tic de 15 min) puede traer una N distinta — se cachea de
+  // nuevo cada vez, sin reconstruir este provider (ver el comentario de
+  // arriba).
+  ref.listen<int>(
+    _clientPolicyRevisionProvider,
+    (_, _) => persistMinutesIfKnown(),
+  );
+
+  // Al volver a primer plano, comprobar de inmediato en vez de esperar al
+  // siguiente tic de 15 s (punto 2 del diseño).
+  final foregroundSubscription = ref
+      .read(_appForegroundSignalProvider)
+      .stream
+      .listen((value) {
+    if (value) controller.checkNow();
+  });
+
+  ref.onDispose(() {
+    unawaited(foregroundSubscription.cancel());
+    unawaited(controller.flush());
+    controller.dispose();
+  });
+  return controller;
+});
 // --- Fin del bloque aislado ------------------------------------------------
 
 // --- Bloque aislado: sesión expirada en caliente (auditoría de sesión,
@@ -2061,6 +2235,13 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
             ref.watch(scopeSyncPeriodicBackupTriggerProvider);
             // El Modo Ruta guardado pausa la sincronización desde que se abre el ámbito.
             ref.watch(scopeRouteModePauseProvider);
+            // Bloqueo por inactividad (14-sep-2026): basta con que exista
+            // para que escuche puntero/teclado globales y arme su propio
+            // temporizador de 15 s mientras dure esta identidad autenticada.
+            // Nunca se lee su valor aquí — `onUnlockWithPin`, más abajo, sí
+            // necesita `pinCredentialStoreProvider` para saber si ofrecer el
+            // PIN, que es un asunto aparte de este controlador.
+            ref.watch(_inactivityLockControllerProvider);
             // Dos medidas, no una suposición: el transporte del aparato y la
             // respuesta del servidor al último sondeo. Si falta cualquiera de
             // las dos, el resultado dice «sin verificar», nunca «conectado».
@@ -2298,8 +2479,57 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
                     locked: locked,
                     onLock: () =>
                         ref.read(workspaceLockProvider.notifier).lock(),
-                    onUnlock: (password) =>
-                        attemptWorkspaceUnlock(ref, password),
+                    onUnlock: (password) async {
+                      final unlocked = await attemptWorkspaceUnlock(
+                        ref,
+                        password,
+                      );
+                      // No es, por sí mismo, la prueba de que alguien sigue
+                      // trabajando — pero evita que el disparador de
+                      // inactividad vuelva a llamar a `lock()` en su
+                      // siguiente tic mientras la persona apenas está
+                      // mirando la pantalla recién desbloqueada. Se hace
+                      // aquí, no dentro de `attemptWorkspaceUnlock` ni de
+                      // `WorkspaceLockNotifier.unlock()`, para que esas dos
+                      // funciones sigan siendo invocables desde una prueba
+                      // sin árbol de widgets (`_inactivityLockControllerProvider`
+                      // toca `GestureBinding`/`HardwareKeyboard`, que exigen
+                      // un binding de Flutter ya inicializado).
+                      if (unlocked) {
+                        ref
+                            .read(_inactivityLockControllerProvider)
+                            ?.markUnlocked();
+                      }
+                      return unlocked;
+                    },
+                    // Sólo se ofrece cuando la identidad bloqueada YA tiene
+                    // un PIN de vendedor enrolado en este aparato — decisión
+                    // del dueño, 14-sep-2026. `null` deja la pantalla de
+                    // bloqueo exactamente como antes, sólo con clave.
+                    onUnlockWithPin: profile != null &&
+                            ref
+                                .watch(pinCredentialStoreProvider)
+                                .isEnrolled(
+                                  pinScopeKeyFor(
+                                    profile.serverUrl,
+                                    profile.database,
+                                    profile.login,
+                                  ),
+                                )
+                        ? (pin) async {
+                            final unlocked = await attemptWorkspaceUnlockWithPin(
+                              ref,
+                              pin,
+                            );
+                            if (unlocked) {
+                              ref
+                                  .read(_inactivityLockControllerProvider)
+                                  ?.markUnlocked();
+                            }
+                            return unlocked;
+                          }
+                        : null,
+                    pinLength: kSellerPinLength,
                     onSwitchUser: () =>
                         confirmSwitchWorkspaceUser(context, ref),
                     // `Builder` gives the denial toast a BuildContext that is
