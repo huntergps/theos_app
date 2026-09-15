@@ -62,6 +62,36 @@ final homeCashSessionsProvider =
       return reader.loadActive(companyId: capabilities.companyId);
     });
 
+/// Resumen del propio turno de caja: sólo las sesiones cuyo `cashierUserId`
+/// es el de la persona autenticada, nunca las de otro cajero.
+final class HomeMyCashSummary {
+  const HomeMyCashSummary({required this.paymentCount, required this.totalAmount});
+  final int paymentCount;
+  final double totalAmount;
+}
+
+/// Nulo cuando la persona no tiene un turno de caja propio abierto ahora
+/// mismo — igual que el resto de tarjetas de Inicio, sin turno no se rellena
+/// con un cero fabricado.
+final homeMyCashSummaryProvider = FutureProvider.autoDispose<HomeMyCashSummary?>(
+  (ref) async {
+    final sessions = await ref.watch(homeCashSessionsProvider.future);
+    if (sessions == null) return null;
+    final profile = ref.watch(authControllerProvider).profile;
+    if (profile == null) return null;
+    final mine = sessions.where(
+      (session) => session.cashierUserId == profile.userId,
+    );
+    if (mine.isEmpty) return null;
+    final paymentCount = mine.fold<int>(0, (total, s) => total + s.paymentCount);
+    final totalAmount = mine.fold<double>(
+      0,
+      (total, s) => total + s.totalPaymentsAmount,
+    );
+    return HomeMyCashSummary(paymentCount: paymentCount, totalAmount: totalAmount);
+  },
+);
+
 final class _RuntimeHomeSalesMetricsReader implements HomeSalesMetricsReader {
   _RuntimeHomeSalesMetricsReader(this.sessions);
   final SessionRuntime sessions;

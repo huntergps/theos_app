@@ -2,9 +2,15 @@ import 'dart:async';
 
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:odoo_widgets/odoo_widgets.dart' show OrbiColumn, OrbiListing;
+import 'package:orbi_runtime/orbi_runtime.dart' show CapabilitySnapshot;
 
+import '../activities/activity_center.dart' show ActivityCenterView, ActivityPort;
 import '../auth/auth_controller.dart' show capabilitySnapshotProvider;
+import 'home_dashboard_providers.dart'
+    show HomeMyCashSummary, homeMyCashSummaryProvider, homeSalesMetricsProvider;
 import 'home_dashboard_view.dart';
+import 'home_resume_status.dart';
 
 enum HomeResumeState { loading, data, empty, error }
 
@@ -16,6 +22,11 @@ final class HomeResumeItem {
     required this.actionLabel,
     this.route,
     this.count,
+    this.status,
+    this.documentDate,
+    this.counterpart,
+    this.moduleLabel,
+    this.totalLabel,
   });
   final String id;
   final String title;
@@ -28,6 +39,31 @@ final class HomeResumeItem {
   /// cuando no hay cifra que enseñar: una tarjeta resumen nunca se rellena
   /// con un cero para simular un dato que no existe.
   final int? count;
+
+  /// Estado de la fila en «Documentos a continuar» (chip de color). Nulo
+  /// cuando quien produce el ítem no clasifica documentos (por ejemplo, un
+  /// candidato de acceso rápido de una versión anterior de esta pantalla) —
+  /// la tabla lo pinta como un guion, nunca inventa un estado.
+  final HomeResumeStatus? status;
+
+  /// Fecha propia del documento (`date_order`, `envases_fecha_salida`,
+  /// `created_at` de la cola…), no de cuándo se generó este ítem. Nula
+  /// cuando el origen no trae una fecha de documento.
+  final DateTime? documentDate;
+
+  /// «Cliente/Proveedor» en ventas y cobros; «Origen → Destino» en un
+  /// traslado de envases. Nulo cuando el documento no tiene contraparte
+  /// (una operación de la cola offline, por ejemplo).
+  final String? counterpart;
+
+  /// Nombre del módulo de origen tal como se pinta en la columna «Módulo»
+  /// de la lámina ACC-03 («Ventas», «Caja», «Envases», «Sincronización»).
+  final String? moduleLabel;
+
+  /// Total ya formateado (`$1,250.00`). Nulo cuando el documento no tiene
+  /// una cifra monetaria propia (un traslado de envases, una operación de
+  /// la cola) — la columna se deja vacía en vez de fingir un total.
+  final String? totalLabel;
 }
 
 final class HomeResumeSnapshot {
@@ -58,19 +94,36 @@ final class _EmptyHomeResumePort implements HomeResumePort {
   Future<void> resume(HomeResumeItem item) async {}
 }
 
-/// El contenido de Inicio: lo que hay para continuar, con una fila de cifras
-/// reales arriba cuando el ítem trae [HomeResumeItem.count], y por dónde
-/// empezar cuando no hay nada pendiente.
+/// `dd/MM/yyyy`, sin depender de `intl` (mismo motivo que `homeTodayLabel` más
+/// abajo: el paquete no es dependencia de `theos_panel`).
+String _formatDocumentDate(DateTime date) {
+  final local = date.toLocal();
+  final dd = local.day.toString().padLeft(2, '0');
+  final mm = local.month.toString().padLeft(2, '0');
+  return '$dd/$mm/${local.year}';
+}
+
+/// El contenido de Inicio: la fila de cifras reales, «Documentos a
+/// continuar» / «Actividad reciente» / «Indicadores» en pestañas, y las
+/// tarjetas por módulo al pie (sólo en ventana ancha) — diseño aprobado en
+/// `docs/orbi_panel/visual_baselines/approved/round-02/ACC-03.png`.
 ///
 /// No dibuja su propia cabecera: el marco (título, subtítulo, `OrbiPage`) lo
 /// pone quien compone la pantalla completa, para no fabricar un segundo
 /// esqueleto (`SHELL_AND_INTERACTION_SPEC.md`, «Estándar resuelto del
 /// marco»).
-class HomeCenterView extends ConsumerWidget {
+///
+/// 🔴 Ya no hay «Accesos rápidos» ni «Empieza por aquí»: la navegación real
+/// (panel lateral y barra inferior) ya lleva a cada módulo — orden del
+/// dueño, punto 5 de ACC-03. Un candidato de acceso rápido que todavía se le
+/// pase a [HomeCenterView] se ignora.
+class HomeCenterView extends ConsumerStatefulWidget {
   const HomeCenterView({
     required this.port,
     this.onResume,
-    this.quickStarts = const [],
+    this.activityPort,
+    this.currentUserId,
+    this.envasesPendingItems = const [],
     this.onOpenOwnCashSession,
     this.onOpenCashSessionById,
     super.key,
@@ -78,11 +131,22 @@ class HomeCenterView extends ConsumerWidget {
   final HomeResumePort port;
   final Future<void> Function(HomeResumeItem item)? onResume;
 
-  /// Áreas a las que la persona sí tiene acceso, para enseñarlas cuando no
-  /// hay trabajo pendiente que continuar. Ya llegan filtradas por permisos
-  /// de quien compone la pantalla: esta vista no decide accesos, sólo los
-  /// muestra tal cual se los pasaron.
-  final List<HomeResumeItem> quickStarts;
+  /// Mismo puerto que lee `/activities` (`ScopeActivityPort` vía
+  /// `scopeActivityPortProvider`) — reutilizado, no copiado. Nulo cuando
+  /// quien compone la pantalla no tiene un servicio de actividades, o el
+  /// usuario no tiene el permiso `activities` (`HomePage` decide esto antes
+  /// de pasarlo).
+  final ActivityPort? activityPort;
+
+  /// Id del usuario de la sesión activa, para el filtro «Mías/Todas» de
+  /// `ActivityCenterView` — mismo dato que ya usa `/activities`.
+  final int? currentUserId;
+
+  /// Traslados de envases por recibir, ya resueltos por quien compone la
+  /// pantalla (`EnvasesPorRecibirCache` vía el mismo controlador que usa la
+  /// pantalla real de envases) — `HomeCenterView` no abre su propio caché,
+  /// sólo pinta lo que le llega.
+  final List<HomeResumeItem> envasesPendingItems;
 
   /// Se invoca al tocar la fila del PROPIO turno en «Sesiones de caja
   /// activas». Sin id: `/collection/hub` (la única ruta que abre el hub del
@@ -98,251 +162,431 @@ class HomeCenterView extends ConsumerWidget {
   final void Function(String sessionId)? onOpenCashSessionById;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomeCenterView> createState() => _HomeCenterViewState();
+}
+
+class _HomeCenterViewState extends ConsumerState<HomeCenterView> {
+  int _tabIndex = 0;
+
+  void _resume(HomeResumeItem item) =>
+      unawaited(widget.onResume?.call(item) ?? widget.port.resume(item));
+
+  @override
+  Widget build(BuildContext context) {
     final capabilities = ref.watch(capabilitySnapshotProvider);
-    // Sólo se arma el panel de indicadores cuando hay al menos una capacidad
-    // con una fuente de datos real detrás (venta o cobro; bodega no tiene
-    // todavía un dato local confiable — ver `home_dashboard_contracts.dart`).
-    // El resto de capacidades (aprobador, sync, actividades…) no aportan un
-    // indicador propio todavía, así que no activan el panel por sí solas —
-    // eso sería fabricar una sección vacía.
-    final showDashboard =
-        capabilities != null &&
-        capabilities.permissions.intersection(const {
-          'seller',
-          'cashier',
-        }).isNotEmpty;
+    final permissions = capabilities?.permissions ?? const <String>{};
 
     return StreamBuilder<HomeResumeSnapshot>(
-      stream: port.changes,
-      initialData: port.snapshot,
+      stream: widget.port.changes,
+      initialData: widget.port.snapshot,
       builder: (context, snapshot) {
-        final state = snapshot.data ?? port.snapshot;
-        if (!showDashboard) {
-          return switch (state.state) {
-            HomeResumeState.loading => const Center(child: ProgressRing()),
-            HomeResumeState.error => Center(
-              child: Text(state.message ?? 'No se pudo cargar el inicio'),
-            ),
-            HomeResumeState.empty => _empty(context),
-            HomeResumeState.data => _content(context, state.items),
-          };
-        }
-        return ListView(
-          padding: const EdgeInsets.only(bottom: 24),
-          children: [
-            HomeIndicatorGrid(capabilities: capabilities),
-            const SizedBox(height: 16),
-            const HomeLastSyncCard(),
-            if (capabilities.permissions.contains('cashier')) ...[
-              const SizedBox(height: 16),
-              HomeCashSessionsSection(
-                onOpenOwnSession: onOpenOwnCashSession,
-                onOpenSupervisedSession:
-                    capabilities.permissions.contains('collection_supervisor')
-                    ? onOpenCashSessionById
-                    : null,
+        final state = snapshot.data ?? widget.port.snapshot;
+        final portItems = state.state == HomeResumeState.data
+            ? state.items
+            : const <HomeResumeItem>[];
+        final documentItems = [...portItems, ...widget.envasesPendingItems];
+
+        final showActivities =
+            widget.activityPort != null && permissions.contains('activities');
+
+        final tabs = <_HomeTab>[
+          _HomeTab(
+            label: 'Documentos a continuar (${documentItems.length})',
+            body: _documentsBody(context, state, documentItems),
+          ),
+          if (showActivities)
+            _HomeTab(
+              label: 'Actividad reciente',
+              body: ActivityCenterView(
+                port: widget.activityPort!,
+                currentUserId: widget.currentUserId,
               ),
-            ],
-            if (quickStarts.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              _quickAccessSection(context),
-            ],
-            if (state.state == HomeResumeState.data && state.items.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              _resumeSection(context, state.items),
-            ] else if (state.state == HomeResumeState.loading) ...[
-              const SizedBox(height: 16),
-              const Center(child: ProgressRing()),
-            ] else if (state.state == HomeResumeState.error) ...[
-              const SizedBox(height: 16),
-              Text(state.message ?? 'No se pudo cargar el inicio'),
-            ],
-          ],
+            ),
+          _HomeTab(
+            label: 'Indicadores',
+            body: _indicatorsBody(context, capabilities),
+          ),
+        ];
+        final tabIndex = _tabIndex >= tabs.length ? 0 : _tabIndex;
+
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final wide = constraints.maxWidth >= 1008;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _metricsRow(context, capabilities, documentItems),
+                const SizedBox(height: 16),
+                Expanded(
+                  child: TabView(
+                    currentIndex: tabIndex,
+                    onChanged: (index) => setState(() => _tabIndex = index),
+                    // Ninguna pestaña se cierra ni se añade: son fijas, así
+                    // que el control nativo más cercano a las pestañas
+                    // subrayadas de la lámina (`fluent_ui`
+                    // `controls/navigation/tab_view/tab_view.dart`) se usa
+                    // sin su cruz de cerrar ni su botón «+».
+                    closeButtonVisibility: CloseButtonVisibilityMode.never,
+                    tabWidthBehavior: TabWidthBehavior.sizeToContent,
+                    tabs: [
+                      for (final tab in tabs)
+                        Tab(text: Text(tab.label), body: tab.body),
+                    ],
+                  ),
+                ),
+                if (wide) ...[
+                  const SizedBox(height: 16),
+                  _moduleCardsRow(context, ref, capabilities),
+                ],
+              ],
+            );
+          },
         );
       },
     );
   }
 
-  Widget _quickAccessSection(BuildContext context) {
-    final typography = FluentTheme.of(context).typography;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _documentsBody(
+    BuildContext context,
+    HomeResumeSnapshot state,
+    List<HomeResumeItem> items,
+  ) {
+    if (state.state == HomeResumeState.error && items.isEmpty) {
+      return Center(
+        child: Text(state.message ?? 'No se pudo cargar el inicio'),
+      );
+    }
+    if (state.state == HomeResumeState.loading && items.isEmpty) {
+      return const Center(child: ProgressRing());
+    }
+    final theme = FluentTheme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: OrbiListing<HomeResumeItem>(
+        key: const Key('home-documents-listing'),
+        storageKey: 'home.documents',
+        rows: items,
+        showFilterBox: false,
+        emptyMessage: 'No hay documentos por continuar',
+        onRowTap: _resume,
+        columns: [
+          OrbiColumn<HomeResumeItem>(
+            key: 'estado',
+            label: 'Estado',
+            alwaysVisible: true,
+            value: (item) => homeResumeStatusLabel(item.status),
+            badgeColor: (item) => homeResumeStatusColor(theme, item.status),
+          ),
+          OrbiColumn<HomeResumeItem>(
+            key: 'documento',
+            label: 'Documento',
+            alwaysVisible: true,
+            value: (item) => item.title,
+          ),
+          OrbiColumn<HomeResumeItem>(
+            key: 'fecha',
+            label: 'Fecha',
+            value: (item) => item.documentDate == null
+                ? '—'
+                : _formatDocumentDate(item.documentDate!),
+          ),
+          OrbiColumn<HomeResumeItem>(
+            key: 'contraparte',
+            label: 'Cliente/Proveedor',
+            value: (item) => item.counterpart ?? '—',
+          ),
+          OrbiColumn<HomeResumeItem>(
+            key: 'modulo',
+            label: 'Módulo',
+            value: (item) => item.moduleLabel ?? '—',
+          ),
+          OrbiColumn<HomeResumeItem>(
+            key: 'total',
+            label: 'Total (USD)',
+            numeric: true,
+            emphasis: true,
+            value: (item) => item.totalLabel ?? '',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _indicatorsBody(BuildContext context, CapabilitySnapshot? capabilities) {
+    return ListView(
+      padding: const EdgeInsets.only(top: 8, bottom: 24),
       children: [
-        Text('Accesos rápidos', style: typography.bodyStrong),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: quickStarts
-              .map(
-                (item) => Button(
-                  onPressed: () =>
-                      unawaited(onResume?.call(item) ?? port.resume(item)),
-                  child: Text(item.title),
-                ),
-              )
-              .toList(),
-        ),
+        if (capabilities != null) ...[
+          HomeIndicatorGrid(capabilities: capabilities),
+          const SizedBox(height: 16),
+        ],
+        const HomeLastSyncCard(),
+        if (capabilities != null &&
+            capabilities.permissions.contains('cashier')) ...[
+          const SizedBox(height: 16),
+          HomeCashSessionsSection(
+            onOpenOwnSession: widget.onOpenOwnCashSession,
+            onOpenSupervisedSession:
+                capabilities.permissions.contains('collection_supervisor')
+                ? widget.onOpenCashSessionById
+                : null,
+          ),
+        ],
       ],
     );
   }
 
-  Widget _empty(BuildContext context) {
-    final typography = FluentTheme.of(context).typography;
-    return Center(
+  /// Máximo 4 tarjetas, en el orden fijo de ACC-03: Ventas hoy, Documentos a
+  /// continuar (siempre), Cobros del turno, Por recibir — y sólo si queda un
+  /// quinto hueco, Pendientes de enviar. Nunca se rellena con un cero
+  /// fabricado: cada tarjeta sólo aparece cuando su lector ya resolvió un
+  /// dato real.
+  Widget _metricsRow(
+    BuildContext context,
+    CapabilitySnapshot? capabilities,
+    List<HomeResumeItem> documentItems,
+  ) {
+    final permissions = capabilities?.permissions ?? const <String>{};
+    final cards = <_MetricCard>[];
+
+    if (permissions.contains('seller')) {
+      final sales = ref.watch(homeSalesMetricsProvider).value;
+      if (sales != null) {
+        cards.add(
+          _MetricCard(
+            label: 'Ventas hoy',
+            value: homeCurrencyLabel(sales.totalAmount),
+            detail: sales.totalOrders == 1
+                ? '1 orden'
+                : '${sales.totalOrders} órdenes',
+          ),
+        );
+      }
+    }
+
+    cards.add(
+      _MetricCard(
+        label: 'Documentos a continuar',
+        value: '${documentItems.length}',
+        detail: documentItems.isEmpty ? 'Al día' : 'A continuar',
+      ),
+    );
+
+    if (permissions.contains('cashier')) {
+      final HomeMyCashSummary? cash = ref
+          .watch(homeMyCashSummaryProvider)
+          .value;
+      if (cash != null) {
+        cards.add(
+          _MetricCard(
+            label: 'Cobros del turno',
+            value: homeCurrencyLabel(cash.totalAmount),
+            detail: cash.paymentCount == 1
+                ? '1 cobro'
+                : '${cash.paymentCount} cobros',
+          ),
+        );
+      }
+    }
+
+    if (permissions.contains('envases_read')) {
+      cards.add(
+        _MetricCard(
+          label: 'Por recibir',
+          value: '${widget.envasesPendingItems.length}',
+          detail: widget.envasesPendingItems.isEmpty
+              ? 'Sin traslados'
+              : 'traslados',
+        ),
+      );
+    }
+
+    if (cards.length < 4) {
+      final pendingCount = documentItems
+          .where((item) => item.moduleLabel == 'Sincronización')
+          .length;
+      if (pendingCount > 0) {
+        cards.add(
+          _MetricCard(
+            label: 'Pendientes de enviar',
+            value: '$pendingCount',
+            detail: pendingCount == 1 ? '1 operación' : '$pendingCount operaciones',
+          ),
+        );
+      }
+    }
+
+    final visible = cards.take(4).toList(growable: false);
+    return Wrap(
+      key: const Key('home-metrics-row'),
+      spacing: 12,
+      runSpacing: 12,
+      children: [
+        for (final card in visible)
+          SizedBox(
+            key: Key('home-metric-card-${card.label}'),
+            width: 200,
+            child: _metricCardView(context, card),
+          ),
+      ],
+    );
+  }
+
+  Widget _metricCardView(BuildContext context, _MetricCard card) {
+    final theme = FluentTheme.of(context);
+    return Card(
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(4),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(FluentIcons.completed_solid, size: 32),
-            const SizedBox(height: 12),
-            Text('No hay trabajo pendiente', style: typography.bodyStrong),
-            if (quickStarts.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Text('Empieza por aquí:', style: typography.body),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                alignment: WrapAlignment.center,
-                children: quickStarts
-                    .map(
-                      (item) => Button(
-                        onPressed: () => unawaited(
-                          onResume?.call(item) ?? port.resume(item),
-                        ),
-                        child: Text(item.title),
-                      ),
-                    )
-                    .toList(),
+            Text(
+              card.label,
+              style: theme.typography.caption,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 4),
+            Text(card.value, style: theme.typography.titleLarge),
+            if (card.detail != null)
+              Text(
+                card.detail!,
+                style: theme.typography.caption?.copyWith(
+                  color: theme.inactiveColor,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-            ],
           ],
         ),
       ),
     );
   }
 
-  /// Igual que [_content], pero sin envolver en su propio `ListView`: se usa
-  /// dentro del `ListView` general del panel de indicadores, y un
-  /// `ListView` sin altura acotada dentro de otro revienta el layout.
-  Widget _resumeSection(BuildContext context, List<HomeResumeItem> items) {
-    final withCount = items.where((item) => item.count != null).toList();
-    return LayoutBuilder(
-      builder: (context, constraints) => Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (withCount.isNotEmpty) ...[
-            _kpiRow(context, withCount),
-            const SizedBox(height: 16),
-          ],
-          _itemsList(context, items, wide: constraints.maxWidth >= 840),
-        ],
-      ),
-    );
-  }
+  /// Una tarjeta por módulo disponible, sólo con datos que Orbi ya tiene —
+  /// sin minigráfico: no hay historia local todavía (orden del dueño, punto
+  /// 4 de ACC-03). Bodega y Aprobaciones se omiten: ningún lector local
+  /// existe para ellas hoy (`home_dashboard_contracts.dart`).
+  Widget _moduleCardsRow(
+    BuildContext context,
+    WidgetRef ref,
+    CapabilitySnapshot? capabilities,
+  ) {
+    final permissions = capabilities?.permissions ?? const <String>{};
+    final cards = <Widget>[];
 
-  Widget _content(BuildContext context, List<HomeResumeItem> items) {
-    final withCount = items.where((item) => item.count != null).toList();
-    return LayoutBuilder(
-      builder: (context, constraints) => ListView(
-        children: [
-          if (withCount.isNotEmpty) ...[
-            _kpiRow(context, withCount),
-            const SizedBox(height: 16),
-          ],
-          _itemsList(context, items, wide: constraints.maxWidth >= 840),
-        ],
-      ),
-    );
-  }
+    if (permissions.contains('seller')) {
+      final sales = ref.watch(homeSalesMetricsProvider).value;
+      if (sales != null) {
+        cards.add(
+          _moduleCard(
+            context,
+            icon: FluentIcons.shopping_cart,
+            title: 'Ventas',
+            value: '${sales.totalOrders}',
+            detail: '${sales.totalOrders == 1 ? 'documento' : 'documentos'} · ${homeCurrencyLabel(sales.totalAmount)}',
+          ),
+        );
+      }
+    }
 
-  /// Cifras reales, no decorativas: cada tarjeta repite el número que ya
-  /// viaja en el ítem de abajo, nunca uno inventado aparte. Ámbar porque
-  /// todo lo que llega aquí es, por definición, trabajo pendiente —el color
-  /// por significado de `SHELL_AND_INTERACTION_SPEC.md`.
-  Widget _kpiRow(BuildContext context, List<HomeResumeItem> items) {
-    final theme = FluentTheme.of(context);
+    if (permissions.contains('cashier')) {
+      final cash = ref.watch(homeMyCashSummaryProvider).value;
+      if (cash != null) {
+        cards.add(
+          _moduleCard(
+            context,
+            icon: FluentIcons.money,
+            title: 'Caja',
+            value: '${cash.paymentCount}',
+            detail: '${cash.paymentCount == 1 ? 'cobro' : 'cobros'} · ${homeCurrencyLabel(cash.totalAmount)}',
+          ),
+        );
+      }
+    }
+
+    if (permissions.contains('envases_read')) {
+      cards.add(
+        _moduleCard(
+          context,
+          icon: FluentIcons.product,
+          title: 'Envases',
+          value: '${widget.envasesPendingItems.length}',
+          detail: 'traslados por recibir',
+        ),
+      );
+    }
+
+    if (cards.isEmpty) return const SizedBox.shrink();
     return Wrap(
       spacing: 12,
       runSpacing: 12,
-      children: items
-          .map(
-            (item) => SizedBox(
-              width: 200,
-              child: Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(4),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          _dot(theme.resources.systemFillColorCaution),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              item.title,
-                              style: theme.typography.caption,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${item.count}',
-                        style: theme.typography.titleLarge,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          )
-          .toList(),
+      children: [for (final card in cards) SizedBox(width: 220, child: card)],
     );
   }
 
-  Widget _itemsList(
-    BuildContext context,
-    List<HomeResumeItem> items, {
-    required bool wide,
+  Widget _moduleCard(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String value,
+    required String detail,
   }) {
     final theme = FluentTheme.of(context);
-    Widget child(HomeResumeItem item) => Card(
-      child: ListTile(
-        leading: Padding(
-          padding: const EdgeInsets.only(top: 6),
-          child: _dot(theme.resources.systemFillColorCaution),
-        ),
-        title: Text(item.title),
-        subtitle: Text(item.subtitle),
-        trailing: FilledButton(
-          onPressed: () =>
-              unawaited(onResume?.call(item) ?? port.resume(item)),
-          child: Text(item.actionLabel),
-        ),
+    return Card(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: theme.accentColor.normal.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, size: 18, color: theme.accentColor.normal),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(title, style: theme.typography.bodyStrong),
+                Text(
+                  value,
+                  style: theme.typography.subtitle,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  detail,
+                  style: theme.typography.caption?.copyWith(
+                    color: theme.inactiveColor,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
-    return wide
-        ? GridView.extent(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            maxCrossAxisExtent: 420,
-            children: items.map(child).toList(),
-          )
-        : Column(children: items.map(child).toList());
   }
+}
 
-  Widget _dot(Color color) => Container(
-    width: 8,
-    height: 8,
-    decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-  );
+final class _HomeTab {
+  const _HomeTab({required this.label, required this.body});
+  final String label;
+  final Widget body;
+}
+
+final class _MetricCard {
+  const _MetricCard({required this.label, required this.value, this.detail});
+  final String label;
+  final String value;
+  final String? detail;
 }
 
 /// «Lunes, 14 de abril de 2025», sin depender de `intl`: el paquete no es
