@@ -8,13 +8,17 @@ import 'package:theos_panel/ui/layouts/operational_shell.dart';
 /// comparado contra las láminas aprobadas
 /// (`docs/orbi_panel/visual_baselines/approved/round-02/ENV-01.png`,
 /// `round-03/SHELL-01.png`): barra inferior con hasta cuatro destinos más
-/// «Más», barra superior compacta (menú, marca, avisos, avatar) y una franja
-/// de estado fina al pie — orden del dueño, 15-sep-2026.
+/// «Más» (o tres más el «+» en su propio puesto, con acción principal),
+/// barra superior compacta (menú, marca, avisos, avatar) y una franja de
+/// estado fina al pie — orden del dueño, 15-sep-2026, corregido el mismo día
+/// tras revisión: el corte de ancho es el del iPad vertical de la lámina
+/// (1024), el «+» tiene su propio puesto en la fila, y «Actividades» entra
+/// al panel de «Más».
 ///
 /// Seis nav destinations reales (más «Sistema», que nunca entra al menú
-/// principal): con selectedPath en el sexto, sobra para probar que la
-/// pantalla activa se abre paso en la barra inferior aunque no esté entre
-/// los primeros cuatro.
+/// principal salvo «Actividades» en modo barra inferior): con selectedPath
+/// en el sexto, sobra para probar que la pantalla activa se abre paso en la
+/// barra inferior aunque no esté entre los primeros cuatro.
 const _destinations = [
   OperationalDestination(
     label: 'Inicio',
@@ -51,6 +55,12 @@ const _destinations = [
     path: '/proveedores',
     icon: FluentIcons.product_variant,
     group: 'Compras',
+  ),
+  OperationalDestination(
+    label: 'Actividades',
+    path: '/activities',
+    icon: FluentIcons.calendar,
+    group: 'Sistema',
   ),
   OperationalDestination(
     label: 'Avisos',
@@ -241,6 +251,46 @@ void main() {
       );
     }
 
+    // (g) 1024×1366: el iPad vertical EXACTO de `round-03/SHELL-01.png`
+    // (rotulado ahí «iPad Vertical (1024 × 1366)», dibujado con barra
+    // inferior). Contra a3eba8d falla: esa versión usaba el corte de Fluent
+    // (1008), que deja 1024 fuera.
+    testWidgets(
+      'a 1024×1366 (el iPad vertical exacto de SHELL-01) también hay barra '
+      'inferior',
+      (tester) async {
+        const size = Size(1024, 1366);
+        await _pump(tester, _host(size), size);
+
+        expect(find.byKey(const Key('shell-bottom-nav-bar')), findsOneWidget);
+        expect(
+          tester
+              .state<NavigationViewState>(find.byType(NavigationView))
+              .displayMode,
+          PaneDisplayMode.minimal,
+        );
+      },
+    );
+
+    // No-regresión complementaria a (c): un pelo más ancho que el iPad
+    // vertical de la lámina ya NO lleva barra inferior.
+    testWidgets(
+      'a 1025×1366 (más ancho que el iPad vertical de la lámina) no hay '
+      'barra inferior',
+      (tester) async {
+        const size = Size(1025, 1366);
+        await _pump(tester, _host(size), size);
+
+        expect(find.byKey(const Key('shell-bottom-nav-bar')), findsNothing);
+        expect(
+          tester
+              .state<NavigationViewState>(find.byType(NavigationView))
+              .displayMode,
+          PaneDisplayMode.expanded,
+        );
+      },
+    );
+
     // (d) «Más» abre el panel completo, y un destino navega a su ruta.
     testWidgets('«Más» abre el panel; un destino navega a su ruta', (
       tester,
@@ -359,11 +409,85 @@ void main() {
         findsNothing,
       );
     });
+
+    // (h) el «+» ocupa su PROPIO puesto en la fila: nunca se superpone con
+    // ninguna de las cuatro pestañas (los tres destinos reales más «Más»).
+    // Contra a3eba8d falla: el «+» flotaba centrado sobre TODA la barra y
+    // caía encima de la segunda pestaña.
+    testWidgets(
+      'con acción principal, el «+» y las 4 pestañas no se superponen',
+      (tester) async {
+        const size = Size(390, 844);
+        await _pump(
+          tester,
+          _host(size, primaryActionPath: '/inventario/envases/enviar'),
+          size,
+        );
+
+        final primaryActionRect = tester.getRect(
+          find.byKey(const Key('shell-bottom-nav-primary-action')),
+        );
+        final tabKeys = [
+          const Key('shell-bottom-nav-tab-/'),
+          const Key('shell-bottom-nav-tab-/inventario/envases'),
+          const Key('shell-bottom-nav-tab-/inventario/movimientos'),
+          const Key('shell-bottom-nav-more'),
+        ];
+        for (final key in tabKeys) {
+          final tabRect = tester.getRect(find.byKey(key));
+          expect(
+            primaryActionRect.overlaps(tabRect),
+            isFalse,
+            reason:
+                'el «+» ($primaryActionRect) se superpone con la pestaña '
+                '$key ($tabRect)',
+          );
+        }
+      },
+    );
   });
 
-  // El corte en sí: documenta [OrbiTheme.fullPaneBreakpoint] contra el valor
-  // real de Fluent, para que nadie lo desalinee sin darse cuenta.
-  test('el corte del armazón es el mismo que el de Fluent (1008)', () {
-    expect(OrbiTheme.fullPaneBreakpoint, 1008.0);
+  group('«Actividades» en modo barra inferior', () {
+    // (i) sólo alcanzable desde «Más» (o el menú) en este modo — nunca en la
+    // barra superior compacta. Contra a3eba8d falla: Actividades no tenía
+    // ningún punto de entrada en modo barra inferior.
+    testWidgets(
+      'abrir «Más» muestra Actividades y navega a su ruta',
+      (tester) async {
+        const size = Size(390, 844);
+        String? navegado;
+        await _pump(
+          tester,
+          _host(size, onNavigate: (p) => navegado = p),
+          size,
+        );
+
+        // No vive en la barra superior compacta: ahí sólo hay campana de
+        // avisos y avatar.
+        expect(
+          find.byKey(const Key('shell-activities-button')),
+          findsNothing,
+        );
+
+        await tester.tap(find.byKey(const Key('shell-bottom-nav-more')));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Actividades'), findsOneWidget);
+        await tester.tap(find.text('Actividades'));
+        await tester.pumpAndSettle();
+        expect(navegado, '/activities');
+      },
+    );
   });
+
+  // El corte en sí: el ancho del iPad vertical EXACTO de `SHELL-01.png`
+  // («iPad Vertical (1024 × 1366)»), no el de Fluent (1008) — corregido el
+  // 15-sep-2026 tras revisión: la primera versión reutilizaba el de Fluent y
+  // dejaba fuera a ese iPad.
+  test(
+    'el corte del armazón es el ancho del iPad vertical de SHELL-01 (1024)',
+    () {
+      expect(OrbiTheme.bottomNavigationMaxPortraitWidth, 1024.0);
+    },
+  );
 }

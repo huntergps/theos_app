@@ -61,7 +61,7 @@ void main() {
   // 🔴 Actualizada el 15-sep-2026: a 390×844 (VERTICAL), el pie ya no es
   // `_compactContextButton` (el `Align` sin fondo propio que causaba el
   // hueco original) — cae en el nuevo modo barra inferior
-  // (`OrbiTheme.fullPaneBreakpoint`), donde el último hijo de la `Column` es
+  // (`OrbiTheme.bottomNavigationMaxPortraitWidth`), donde el último hijo de la `Column` es
   // la franja de estado ([_bottomStatusStrip]), que SIEMPRE se pinta dentro
   // de su propio `ColoredBox` opaco. El riesgo que esta prueba vigilaba
   // (una franja sin fondo dejando ver la página HTML de detrás) se

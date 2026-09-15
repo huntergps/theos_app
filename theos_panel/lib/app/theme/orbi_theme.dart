@@ -17,17 +17,18 @@ abstract final class OrbiTheme {
   static const compactBreakpoint = 600.0;
   static const mediumBreakpoint = 840.0;
 
-  /// El ancho a partir del cual `PaneDisplayMode.auto` de Fluent abre el
-  /// panel completo con etiquetas —
-  /// `NavigationViewState._resolveDisplayMode`
-  /// (`fluent_ui-4.16.1/lib/src/controls/navigation/navigation_view/view.dart:543`,
-  /// `else if (width >= 1008) { autoDisplayMode = PaneDisplayMode.expanded; }`).
-  /// `OperationalShell` reutiliza este mismo número como su propio corte: en
-  /// VERTICAL (alto > ancho), por debajo de este ancho, fuerza una barra de
-  /// navegación inferior en vez de esperar a que Fluent abra el panel
-  /// completo con etiquetas — orden del dueño, 15-sep-2026, comparando con
-  /// las láminas aprobadas (`round-02/ENV-01.png`, `round-03/SHELL-01.png`).
-  static const fullPaneBreakpoint = 1008.0;
+  /// El ancho MÁXIMO, en VERTICAL (alto > ancho), en el que `OperationalShell`
+  /// usa una barra de navegación inferior en vez del carril lateral de
+  /// Fluent. Corregido el 15-sep-2026: la primera versión reutilizaba el
+  /// corte propio de `PaneDisplayMode.auto`
+  /// (`NavigationViewState._resolveDisplayMode`,
+  /// `fluent_ui-4.16.1/lib/.../navigation_view/view.dart:543`, 1008), pero
+  /// eso dejaba FUERA al iPad vertical de la lámina aprobada
+  /// `round-03/SHELL-01.png` — rotulada ahí mismo «iPad Vertical
+  /// (1024 × 1366)», y con barra inferior dibujada — porque 1024 ≥ 1008. El
+  /// dueño exigió aplicar la lámina completa: el corte es el ANCHO de ESE
+  /// iPad, 1024, no el de Fluent.
+  static const bottomNavigationMaxPortraitWidth = 1024.0;
 
   static const space4 = 4.0;
   static const space8 = 8.0;

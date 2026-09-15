@@ -289,12 +289,19 @@ bool _isGroupedNavDestination(OperationalDestination d) =>
 /// Inicio, Inventario, Reportes, Más.
 const _kBottomNavMaxDestinations = 4;
 
+/// Lo mismo que [_kBottomNavMaxDestinations], pero cuando el «+» ocupa su
+/// propio puesto en la fila (`round-02/ENV-01.png`): «Inicio, Inventario, +,
+/// Reportes, Más» — sólo tres destinos reales, no cuatro, porque el «+» es
+/// ahora una columna más de la fila.
+const _kBottomNavMaxDestinationsWithPrimaryAction = 3;
+
 /// Alto de la barra de navegación inferior. Sobra sobre el mínimo táctil de
 /// 44px lógicos (ver [_kMinTouchTarget]) para dejar sitio al ícono, la
-/// etiqueta y el respiro del «+» flotante que se superpone por encima.
+/// etiqueta y el respiro del «+» que sobresale por encima de su propia
+/// columna.
 const _kBottomNavHeight = 64.0;
 
-/// Lado del botón «+» flotante de la barra inferior.
+/// Lado del botón «+» de la barra inferior.
 const _kPrimaryActionSize = 52.0;
 
 /// Área táctil mínima de cada pestaña de la barra inferior — el estándar de
@@ -547,11 +554,13 @@ class _OperationalShellState extends State<OperationalShell> {
   Widget _scaffold(BuildContext buildContext) => LayoutBuilder(
     builder: (layoutContext, constraints) {
       // Orden del dueño, 15-sep-2026, comparando con las láminas aprobadas
-      // (`round-02/ENV-01.png`, `round-03/SHELL-01.png`): en VERTICAL, por
-      // debajo del ancho al que Fluent abriría su propio panel completo
-      // (`OrbiTheme.fullPaneBreakpoint`), el armazón usa una barra de
-      // navegación inferior en vez del carril lateral. En horizontal —
-      // 1366×1024 y 1920×1080 en las láminas— queda EXACTAMENTE como antes.
+      // (`round-02/ENV-01.png`, `round-03/SHELL-01.png`): en VERTICAL, hasta
+      // el ancho del iPad vertical de la lámina
+      // (`OrbiTheme.bottomNavigationMaxPortraitWidth`, 1024 — `SHELL-01.png`
+      // lo rotula «iPad Vertical (1024 × 1366)» y lo dibuja con barra
+      // inferior), el armazón usa una barra de navegación inferior en vez
+      // del carril lateral. En horizontal — 1366×1024 y 1920×1080 en las
+      // láminas— queda EXACTAMENTE como antes.
       //
       // Sólo cuando el modo del carril sigue en `auto`: una preferencia fija
       // de Ajustes (`compact`, `expanded`, `top`…) la eligió la persona a
@@ -560,7 +569,7 @@ class _OperationalShellState extends State<OperationalShell> {
       final bottomNavMode =
           widget.navigationDisplayMode == PaneDisplayMode.auto &&
           isPortrait &&
-          constraints.maxWidth < OrbiTheme.fullPaneBreakpoint;
+          constraints.maxWidth <= OrbiTheme.bottomNavigationMaxPortraitWidth;
       final wideFooter =
           !bottomNavMode &&
           constraints.maxWidth >= 600 &&
@@ -668,6 +677,7 @@ class _OperationalShellState extends State<OperationalShell> {
                   forcedDisplayMode: bottomNavMode
                       ? PaneDisplayMode.minimal
                       : null,
+                  includeActivitiesInPane: bottomNavMode,
                 ),
                 // En modo estrecho el contenido llega con su propia barra: sin
                 // ella no hay NINGUNA forma de abrir el menú (ver
@@ -1067,16 +1077,24 @@ class _OperationalShellState extends State<OperationalShell> {
   }
 
   /// Los destinos que se pintan en la barra de navegación inferior: «Inicio»
-  /// primero y hasta [_kBottomNavMaxDestinations] en total, en el mismo
-  /// orden que el menú principal.
+  /// primero y hasta [maxSlots] en total, en el mismo orden que el menú
+  /// principal.
+  ///
+  /// [maxSlots] es 4 sin «+» ([_kBottomNavMaxDestinations]) y 3 con «+»
+  /// ([_kBottomNavMaxDestinationsWithPrimaryAction]) — la lámina
+  /// `round-02/ENV-01.png` sólo deja sitio para tres destinos reales cuando
+  /// el «+» ocupa su propio puesto en medio («Inicio, Inventario, +,
+  /// Reportes, Más»).
   ///
   /// Si la ruta actual quedó fuera de ese primer grupo, ocupa el último
   /// puesto — la pantalla que se está viendo siempre tiene que verse
-  /// marcada, aunque eso signifique desplazar a la que estuviera ahí.
-  List<OperationalDestination> _bottomBarDestinations() {
+  /// marcada, aunque eso signifique desplazar a la que estuviera ahí. Nunca
+  /// el primero: «Inicio» no se sacrifica jamás (orden del dueño,
+  /// 15-sep-2026).
+  List<OperationalDestination> _bottomBarDestinations(int maxSlots) {
     final flat = _flatOrderedNavDestinations();
     if (flat.isEmpty) return const [];
-    final slots = flat.take(_kBottomNavMaxDestinations).toList();
+    final slots = flat.take(maxSlots).toList();
     final currentIncluded = slots.any((d) => d.path == widget.selectedPath);
     if (!currentIncluded) {
       OperationalDestination? current;
@@ -1087,8 +1105,8 @@ class _OperationalShellState extends State<OperationalShell> {
         }
       }
       if (current != null) {
-        if (slots.length >= _kBottomNavMaxDestinations) {
-          slots[_kBottomNavMaxDestinations - 1] = current;
+        if (slots.length >= maxSlots) {
+          slots[maxSlots - 1] = current;
         } else {
           slots.add(current);
         }
@@ -1099,14 +1117,45 @@ class _OperationalShellState extends State<OperationalShell> {
 
   /// La barra de navegación inferior: hasta cuatro destinos más «Más» (que
   /// abre el panel completo, con [_navigationViewKey] por el mismo motivo
-  /// que [_bottomNavTopBar]), y el botón «+» flotante cuando la pantalla
-  /// actual declara una acción principal
-  /// ([OperationalShell.primaryActionPath]).
+  /// que [_bottomNavTopBar]), o —con acción principal declarada
+  /// ([OperationalShell.primaryActionPath])— dos destinos, el «+» en su
+  /// PROPIO puesto de la fila, un tercer destino y «Más»: el mismo reparto
+  /// de `round-02/ENV-01.png` («Inicio, Inventario, +, Reportes, Más»).
+  ///
+  /// 🔴 Corregido el 15-sep-2026: el «+» vivía flotando SOBRE el centro de
+  /// toda la barra, en vez de tener su propio hueco — con cuatro destinos
+  /// de por medio, ese centro caía encima de la segunda pestaña y le tapaba
+  /// el texto (medido en la captura `390x844_claro_con_mas.png`). Ahora el
+  /// «+» es una columna más de la fila —`Expanded` como cualquier
+  /// pestaña—, así que nunca puede solaparse con las de al lado: sólo
+  /// sobresale HACIA ARRIBA, dentro de su propio ancho.
   Widget _bottomNavigationBar(BuildContext context) {
     final theme = FluentTheme.of(context);
     final r = theme.resources;
-    final tabs = _bottomBarDestinations();
     final primaryActionPath = widget.primaryActionPath;
+    final hasPrimaryAction = primaryActionPath != null;
+    final tabs = _bottomBarDestinations(
+      hasPrimaryAction
+          ? _kBottomNavMaxDestinationsWithPrimaryAction
+          : _kBottomNavMaxDestinations,
+    );
+    // Con «+»: dos destinos antes, el resto (uno) después — la posición
+    // exacta de ENV-01. Sin «+»: todos antes, ninguno después.
+    final beforePrimaryAction = hasPrimaryAction ? tabs.take(2).toList() : tabs;
+    final afterPrimaryAction = hasPrimaryAction
+        ? tabs.skip(2).toList()
+        : const <OperationalDestination>[];
+
+    Widget tabFor(OperationalDestination destination) => Expanded(
+      child: _BottomNavTab(
+        key: Key('shell-bottom-nav-tab-${destination.path}'),
+        icon: destination.icon,
+        label: destination.label,
+        selected: destination.path == widget.selectedPath,
+        onTap: () => widget.onNavigate(destination.path),
+      ),
+    );
+
     return Container(
       key: const Key('shell-bottom-nav-bar'),
       height: _kBottomNavHeight,
@@ -1115,45 +1164,30 @@ class _OperationalShellState extends State<OperationalShell> {
         color: theme.micaBackgroundColor,
         border: Border(top: BorderSide(color: r.dividerStrokeColorDefault)),
       ),
-      child: Stack(
-        clipBehavior: Clip.none,
-        alignment: Alignment.topCenter,
+      child: Row(
         children: [
-          Row(
-            children: [
-              for (final destination in tabs)
-                Expanded(
-                  child: _BottomNavTab(
-                    key: Key('shell-bottom-nav-tab-${destination.path}'),
-                    icon: destination.icon,
-                    label: destination.label,
-                    selected: destination.path == widget.selectedPath,
-                    onTap: () => widget.onNavigate(destination.path),
-                  ),
-                ),
-              Expanded(
-                child: _BottomNavTab(
-                  key: const Key('shell-bottom-nav-more'),
-                  icon: FluentIcons.more,
-                  label: 'Más',
-                  // «Más» nunca se marca como el destino activo: sólo abre el
-                  // panel, no navega a ninguna pantalla propia.
-                  selected: false,
-                  onTap: () =>
-                      _navigationViewKey.currentState?.isMinimalPaneOpen =
-                          true,
-                ),
-              ),
-            ],
-          ),
-          if (primaryActionPath != null)
-            Positioned(
-              top: -(_kPrimaryActionSize / 2),
-              child: _BottomNavPrimaryActionButton(
-                key: const Key('shell-bottom-nav-primary-action'),
+          for (final destination in beforePrimaryAction) tabFor(destination),
+          if (hasPrimaryAction)
+            Expanded(
+              child: _BottomNavPrimaryActionSlot(
+                key: const Key('shell-bottom-nav-primary-action-slot'),
+                barHeight: _kBottomNavHeight,
                 onPressed: () => widget.onNavigate(primaryActionPath),
               ),
             ),
+          for (final destination in afterPrimaryAction) tabFor(destination),
+          Expanded(
+            child: _BottomNavTab(
+              key: const Key('shell-bottom-nav-more'),
+              icon: FluentIcons.more,
+              label: 'Más',
+              // «Más» nunca se marca como el destino activo: sólo abre el
+              // panel, no navega a ninguna pantalla propia.
+              selected: false,
+              onTap: () =>
+                  _navigationViewKey.currentState?.isMinimalPaneOpen = true,
+            ),
+          ),
         ],
       ),
     );
@@ -1229,12 +1263,18 @@ class _OperationalShellState extends State<OperationalShell> {
   /// escribirlo: era una de las cuatrocientas líneas que esta migración quitó.
   ///
   /// Tres rutas ya no pasan por aquí como el resto: «Actividades» y «Avisos»
-  /// viven ahora en [_topBar] (mismo grupo «Sistema» en `router.dart`, pero
+  /// viven en [_topBar] (mismo grupo «Sistema» en `router.dart`, pero
   /// duplicarlas en el menú lateral las mostraba dos veces); «Sincronización»
   /// y «Configuración» se pintan en el pie del panel, con el patrón
   /// `footerItems` de Fluent (orden del dueño, 13-sep-2026). Y el grupo
   /// «Workspace» —hoy sólo «Inicio»— se pinta de primer nivel, sin el
   /// desplegable de un solo hijo que tenía antes.
+  ///
+  /// 🔴 Excepción, 15-sep-2026: en modo barra inferior «Actividades» SÍ entra
+  /// aquí, de primer nivel (ver [includeActivitiesInPane]) — en ese modo no
+  /// vive en ninguna barra superior (sólo campana de avisos y avatar, ver
+  /// [_bottomNavTopBar]), así que sin este añadido quedaba sin ningún punto
+  /// de entrada: ni en el panel, ni arriba, ni en la barra inferior.
   ///
   /// [forcedDisplayMode] es la excepción del modo barra inferior
   /// ([_scaffold]): mientras esa barra sustituye al carril, el panel de
@@ -1243,16 +1283,29 @@ class _OperationalShellState extends State<OperationalShell> {
   /// por ejemplo— ya baste para que `PaneDisplayMode.auto` abriera el carril
   /// con etiquetas. `null` dilata a [OperationalShell.navigationDisplayMode],
   /// el comportamiento de siempre.
-  NavigationPane _pane({PaneDisplayMode? forcedDisplayMode}) {
+  NavigationPane _pane({
+    PaneDisplayMode? forcedDisplayMode,
+    bool includeActivitiesInPane = false,
+  }) {
     final navDestinations = widget.destinations
         .where(_isGroupedNavDestination)
         .toList(growable: false);
     final footerDestinations = widget.destinations
         .where(_isFooterDestination)
         .toList(growable: false);
+    OperationalDestination? activitiesDestination;
+    if (includeActivitiesInPane) {
+      for (final destination in widget.destinations) {
+        if (destination.path == _kActivitiesPath) {
+          activitiesDestination = destination;
+          break;
+        }
+      }
+    }
     final grouped = _groupedDestinations(navDestinations);
     final ordered = [
       for (final entry in grouped.entries) ...entry.value,
+      ?activitiesDestination,
       ...footerDestinations,
     ];
     final selectedIndex = ordered.indexWhere(
@@ -1283,6 +1336,13 @@ class _OperationalShellState extends State<OperationalShell> {
           ),
         );
       }
+    }
+    // De primer nivel, no dentro de un grupo «Sistema» — el mismo motivo que
+    // ya vale para «Inicio»: un desplegable de un solo hijo (los otros tres
+    // de «Sistema» viven en la barra superior o el pie, nunca aquí) es peor
+    // que no tener desplegable.
+    if (activitiesDestination != null) {
+      items.add(_navPaneItem(activitiesDestination));
     }
 
     return NavigationPane(
@@ -1908,6 +1968,46 @@ class _BottomNavPrimaryActionButton extends StatelessWidget {
           child: const Icon(FluentIcons.add, size: 22),
         ),
       ),
+    ),
+  );
+}
+
+/// La COLUMNA del «+» dentro de la fila de la barra inferior — un
+/// `Expanded` más, del mismo ancho que cualquier pestaña de al lado.
+///
+/// 🔴 Antes el botón vivía en un `Stack` que envolvía TODA la fila, centrado
+/// respecto al ancho completo de la barra — con cuatro pestañas de por
+/// medio, ese centro caía sobre la segunda y le tapaba el texto (medido en
+/// la captura `390x844_claro_con_mas.png`, 15-sep-2026). Ahora el `Stack`
+/// sólo envuelve ESTA columna: el botón puede sobresalir hacia ARRIBA (fuera
+/// del alto de la barra, como en la lámina), pero nunca hacia los lados,
+/// porque no tiene ancho para hacerlo — sigue acotado al de su propia
+/// columna.
+class _BottomNavPrimaryActionSlot extends StatelessWidget {
+  const _BottomNavPrimaryActionSlot({
+    super.key,
+    required this.barHeight,
+    required this.onPressed,
+  });
+
+  final double barHeight;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height: barHeight,
+    child: Stack(
+      clipBehavior: Clip.none,
+      alignment: Alignment.topCenter,
+      children: [
+        Positioned(
+          top: -(_kPrimaryActionSize / 2),
+          child: _BottomNavPrimaryActionButton(
+            key: const Key('shell-bottom-nav-primary-action'),
+            onPressed: onPressed,
+          ),
+        ),
+      ],
     ),
   );
 }

@@ -183,18 +183,30 @@ void main() {
       );
     });
 
-    // Fluent decide sólo por el ancho: un iPad vertical de 1024 ya pasa de
-    // 1008 y abre el menú, como en cualquier otra app de Fluent.
-    testWidgets('en vertical manda el ancho, como en Fluent', (tester) async {
-      const size = Size(1024, 1366);
-      await _pump(tester, _host(size), size);
-      expect(
-        tester
-            .state<NavigationViewState>(find.byType(NavigationView))
-            .displayMode,
-        PaneDisplayMode.expanded,
-      );
-    });
+    // 🔴 Sustituida el 15-sep-2026 (orden del dueño): a 1024×1366 —el iPad
+    // vertical exacto de `round-03/SHELL-01.png`, rotulado ahí «iPad Vertical
+    // (1024 × 1366)» y dibujado CON barra inferior— el armazón YA NO abre el
+    // panel expandido de Fluent: usa la barra inferior
+    // (`OrbiTheme.bottomNavigationMaxPortraitWidth`, ver el grupo «barra
+    // inferior en teléfono e iPad vertical» de
+    // `operational_shell_bottom_nav_test.dart`). Esta prueba se conserva con
+    // un ancho mayor (1025, uno más que el corte) para seguir demostrando
+    // que en vertical manda el ANCHO, no una regla fija de "todo vertical
+    // lleva panel" ni "todo vertical lleva barra inferior".
+    testWidgets(
+      'en vertical, más ancho que el iPad vertical de la lámina, abre el '
+      'panel completo',
+      (tester) async {
+        const size = Size(1025, 1366);
+        await _pump(tester, _host(size), size);
+        expect(
+          tester
+              .state<NavigationViewState>(find.byType(NavigationView))
+              .displayMode,
+          PaneDisplayMode.expanded,
+        );
+      },
+    );
 
     testWidgets('en teléfono tampoco', (tester) async {
       const size = Size(390, 844);
@@ -586,7 +598,7 @@ void main() {
     testWidgets('en estrecho el pie se pide, y se puede abrir', (tester) async {
       // 🔴 Tamaño cambiado de 390×844 (vertical) a 390×300 (horizontal) el
       // 15-sep-2026: a 390×844 esto caía en el nuevo modo barra inferior
-      // (`OrbiTheme.fullPaneBreakpoint`), donde el pie estrecho ya NO se
+      // (`OrbiTheme.bottomNavigationMaxPortraitWidth`), donde el pie estrecho ya NO se
       // pide con un botón — se ve siempre, resumido, en la franja de estado
       // (ver el grupo «la barra superior compacta (barra inferior)», prueba
       // «la franja de estado se ve siempre, sin pedirse»). Esta prueba
@@ -1078,7 +1090,7 @@ void main() {
       (tester) async {
         // 🔴 Altura cambiada de 900 a 300 el 15-sep-2026: a 390×900 (vertical)
         // esto caía en el nuevo modo barra inferior
-        // (`OrbiTheme.fullPaneBreakpoint`), que sustituye TODO este
+        // (`OrbiTheme.bottomNavigationMaxPortraitWidth`), que sustituye TODO este
         // `CommandBar` por [_bottomNavTopBar] — un `_topBar` distinto, con
         // sus propias reglas (ver ese grupo de pruebas). Esta prueba no
         // comprueba el modo barra inferior, comprueba el corte de
@@ -1230,10 +1242,12 @@ void main() {
     //
     // 🔴 Alto cambiado de 900 a 300 el 15-sep-2026: a 400×900 y 800×900
     // (vertical) esto caía en el nuevo modo barra inferior
-    // (`OrbiTheme.fullPaneBreakpoint`), donde Actividades no tiene botón
-    // propio (ver el grupo «la barra superior compacta (barra inferior)» más
-    // abajo) — esta prueba comprueba el desbordamiento del `CommandBar`
-    // horizontal, así que se mantiene en HORIZONTAL para los tres anchos.
+    // (`OrbiTheme.bottomNavigationMaxPortraitWidth`), que sustituye TODO
+    // este `CommandBar` por [_bottomNavTopBar] (sin botón de Actividades:
+    // ahí sólo vive Avisos, y Actividades pasa al panel de «Más» — ver
+    // `operational_shell_bottom_nav_test.dart`) — esta prueba comprueba el
+    // desbordamiento del `CommandBar` horizontal, así que se mantiene en
+    // HORIZONTAL para los tres anchos.
     for (final width in [400.0, 800.0, 1280.0]) {
       testWidgets(
         'a ${width.toInt()} px no desborda: las acciones se ven o están '
