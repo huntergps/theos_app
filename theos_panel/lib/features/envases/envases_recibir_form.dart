@@ -410,9 +410,16 @@ class _EnvasesRecibirFormState extends State<EnvasesRecibirForm> {
                   // Mismo formato que «Llegaron»/«Dañados»/«Aptos»/«Pendiente»
                   // — sin la unidad pegada al número (antes «24 Unidades»
                   // rompía la alineación con el resto de la fila).
+                  //
+                  // 🔴 Antes usaba `typography.caption` (12px) mientras
+                  // «Aptos»/«Pendiente» de esta misma fila usan `bodyStrong`
+                  // (14px semibold) — la cifra de «Enviados» se veía más
+                  // chica que sus vecinas, medido el 14-sep-2026 contra las
+                  // láminas aprobadas. Mismo token que ellas, no uno inventado.
                   _fmt(controller.linea.pendientes),
+                  key: Key('envases-recibir-enviados-$moveId'),
                   textAlign: TextAlign.right,
-                  style: theme.typography.caption,
+                  style: theme.typography.bodyStrong,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -494,9 +501,23 @@ class _EnvasesRecibirFormState extends State<EnvasesRecibirForm> {
           children: [
             Text(controller.linea.productName, style: theme.typography.bodyStrong),
             const SizedBox(height: 4),
-            Text(
-              'Enviados: ${_fmt(controller.linea.pendientes)} ${controller.linea.uomName}',
-              style: theme.typography.caption,
+            // 🔴 Antes toda la línea (etiqueta y cifra) iba en
+            // `typography.caption` (12px) — la cifra de «Enviados» se veía
+            // más chica que «Aptos»/«Pendiente» de más abajo, que usan
+            // `bodyStrong` (14px semibold) vía `EnvasesInfoField`. Mismo
+            // token para la cifra, sólo la etiqueta se queda en `caption`.
+            Text.rich(
+              TextSpan(
+                style: theme.typography.caption,
+                children: [
+                  const TextSpan(text: 'Enviados: '),
+                  TextSpan(
+                    text: '${_fmt(controller.linea.pendientes)} ${controller.linea.uomName}',
+                    style: theme.typography.bodyStrong,
+                  ),
+                ],
+              ),
+              key: Key('envases-recibir-enviados-$moveId'),
             ),
             const SizedBox(height: 8),
             Row(

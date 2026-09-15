@@ -5,21 +5,56 @@ import 'package:fluent_ui/fluent_ui.dart';
 /// `OrbiForm` (`odoo_widgets/lib/src/listing/orbi_form.dart`).
 const double kEnvasesDesktopBreakpoint = 900;
 
+/// Ancho de la línea inferior de acento que `TextBox` pinta sin foco —
+/// `package:fluent_ui-4.16.1/lib/src/controls/form/text_box.dart:1581`
+/// (`BorderSide(color: ..., width: 1.25)` dentro del `foregroundDecoration`
+/// que arma `_TextBoxState.build`). Es un literal de la librería, no un
+/// número inventado aquí — se nombra para que quede claro de dónde sale y
+/// para no repetirlo dos veces si algún día cambia.
+const double _kTextBoxBottomBorderWidth = 1.25;
+
 /// El `DatePicker` de fluent_ui con la misma apariencia de campo que
 /// `TextBox`/`ComboBox` — sin pintar un borde inventado, tomando prestado
-/// el mismo token de color que usa `TextBox` internamente.
+/// el mismo mecanismo de borde que usa `TextBox` internamente (dos capas,
+/// no una sola).
 ///
 /// 🔴 Causa raíz medida el 14-sep-2026: el `DatePicker` de fluent_ui NO
 /// dibuja un borde como el de `TextBox`. Su decoración por omisión
-/// (`kPickerDecorationBuilder` en `package:fluent_ui`) usa
-/// `theme.inactiveColor.withValues(alpha: 0.2)` con un ancho de **0.15px**
-/// — prácticamente invisible —, mientras que `TextBox` dibuja
-/// `Border.all(color: theme.resources.controlStrokeColorDefault)` a 1px.
-/// `DatePicker` no expone un parámetro `decoration` como `TextBox` para
-/// sobrescribir eso por instancia, así que la única forma de emparejarlo
-/// sin tocar el tema global de la app (que usaría `inactiveColor` en botones,
-/// casillas y otros controles) es envolverlo con el mismo token de borde que
-/// ya usa `TextBox` — no un color inventado a mano.
+/// (`kPickerDecorationBuilder`, `.../controls/pickers/pickers.dart:42-48`)
+/// usa `theme.inactiveColor.withValues(alpha: 0.2)` con un ancho de
+/// **0.15px** — prácticamente invisible. `DatePicker` no expone un
+/// parámetro `decoration` como `TextBox` para sobrescribir eso por
+/// instancia, así que la única forma de emparejarlo sin tocar el tema
+/// global de la app (que usaría `inactiveColor` en botones, casillas y
+/// otros controles) es envolverlo con el mismo mecanismo que ya usa
+/// `TextBox` — no un color ni un ancho inventados a mano.
+///
+/// 🔴 Segunda vuelta, 15-sep-2026: el primer intento sólo copió la MITAD del
+/// borde de `TextBox`. Mirando `text_box.dart` (`package:fluent_ui`), el
+/// borde visible de un `TextBox` en reposo son DOS capas superpuestas —
+/// código exacto en `text_box.dart:1530-1552` (fondo) y `:1572-1584`
+/// (acento inferior):
+/// 1. Un `Border.all(color: controlStrokeColorDefault)` de fondo, radio 4
+///    (`text_box.dart:1529,1534-1537`) — lo único que este widget ya tenía.
+/// 2. Un `foregroundDecoration` con sólo el borde INFERIOR, más grueso y más
+///    oscuro: `controlStrongStrokeColorDefault` (`text_box.dart:1579-1580`)
+///    a `_kTextBoxBottomBorderWidth` (`text_box.dart:1581`) — el acento que
+///    WinUI usa en todos sus campos de entrada en reposo. El estado con
+///    foco de `TextBox` cambia esa línea a color de acento y 2px
+///    (`text_box.dart:1559-1571`), pero `DatePicker` YA pinta su propio
+///    anillo de foco con `FocusBorder` (`date_picker.dart:448`), así que
+///    aquí sólo se replica el estado en reposo — doblar el foco sería
+///    pintar dos indicadores de foco distintos encima del mismo campo.
+/// Sin la segunda capa, el campo se ve con «menos borde» que sus vecinos
+/// `TextBox`/`ComboBox` en el mismo formulario, que es justo lo que vio el
+/// dueño contra la lámina aprobada.
+///
+/// Sin `ClipRRect`: a diferencia de `TextBox` (cuyo contenido interno es un
+/// rectángulo recto que si no se recorta asoma por las esquinas del borde
+/// redondeado), el `DatePicker` YA pinta su propio fondo con
+/// `borderRadius: BorderRadius.circular(4)` en `kPickerDecorationBuilder`
+/// — el mismo radio que este envoltorio — así que no hay esquina cuadrada
+/// que recortar y el `ClipRRect` sería una capa de más sin efecto visible.
 class EnvasesDateField extends StatelessWidget {
   const EnvasesDateField({super.key, required this.selected, this.onChanged, this.datePickerKey});
 
@@ -38,7 +73,17 @@ class EnvasesDateField extends StatelessWidget {
         borderRadius: BorderRadius.circular(4),
         border: Border.all(color: theme.resources.controlStrokeColorDefault),
       ),
-      child: DatePicker(key: datePickerKey, selected: selected, onChanged: onChanged),
+      child: Container(
+        foregroundDecoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: theme.resources.controlStrongStrokeColorDefault,
+              width: _kTextBoxBottomBorderWidth,
+            ),
+          ),
+        ),
+        child: DatePicker(key: datePickerKey, selected: selected, onChanged: onChanged),
+      ),
     );
   }
 }
