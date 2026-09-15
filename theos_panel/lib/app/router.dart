@@ -4,7 +4,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:odoo_sdk/odoo_sdk.dart'
-    show OdooMethodNotFoundException, OdooNotFoundException;
+    show OdooMethodNotFoundException, OdooNotFoundException, logger;
 import 'package:orbi_runtime/orbi_runtime.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -50,6 +50,7 @@ import '../features/activities/activity_center.dart';
 import '../features/reports/document_view.dart';
 import '../features/sync/app_foreground_signal.dart';
 import '../features/sync/network_signal_provider.dart';
+import '../features/sync/sri_pending_poller.dart';
 import '../ui/export/export_listing.dart';
 import '../ui/fluent/orbi_page.dart';
 import '../features/sync/sync_center.dart';
@@ -1599,9 +1600,16 @@ String _sriPendingSupportedPrefsKey(String serverUrl, String database) =>
 String _sriPendingCountPrefsKey(String serverUrl, String database) =>
     'orbi/sri_pending_count/$serverUrl|$database';
 
-final _sriPendingProvider =
-    NotifierProvider<_SriPendingNotifier, SriPendingStatus?>(
-      _SriPendingNotifier.new,
+// Público (sin guion bajo) a propósito: `sri_pending_notifier_test.dart` lo
+// prueba directo con un `ProviderContainer` mínimo (sin montar el armazón
+// completo, que arrastraría sincronización/tiempo real reales — ver el
+// docstring de `router_user_account_test.dart` sobre por qué eso cuelga
+// `pumpAndSettle`) y un `OdooClient` falso — imposible desde otro archivo
+// si esto siguiera privado, igual que ya le pasa a `_odooVersionProvider`
+// (ver `operational_shell_odoo_version_test.dart`).
+final sriPendingProvider =
+    NotifierProvider<SriPendingNotifier, SriPendingStatus?>(
+      SriPendingNotifier.new,
     );
 
 /// Cuenta de comprobantes electrónicos pendientes del SRI, para la píldora
@@ -1622,16 +1630,38 @@ final _sriPendingProvider =
 /// Mismo patrón que `_PresenceSupportedNotifier`: primero se sonda si el
 /// campo existe (`OdooClient.hasField`, que cachea por modelo) y se guarda
 /// la respuesta; si no existe, la señal queda apagada para siempre en esa
-/// sesión. Si existe, se cuenta con `searchCount` cuando hay cliente activo,
-/// como mucho una vez cada 5 minutos, y el último valor se guarda para
-/// mostrarlo sin conexión como «(última lectura)».
-class _SriPendingNotifier extends Notifier<SriPendingStatus?> {
-  DateTime? _lastProbe;
+/// sesión. Si existe, se cuenta con `searchCount` cuando hay cliente activo.
+///
+/// El sondeo en sí — el `Timer.periodic` de 5 minutos, el sondeo al volver a
+/// primer plano, y el apagado por `OdooAccessDeniedException` — vive en
+/// `SriPendingPoller` (`features/sync/sri_pending_poller.dart`),
+/// deliberadamente fuera de Riverpod para poder probarlo con
+/// `package:fake_async` sin montar un `ProviderContainer`. Este `Notifier`
+/// es sólo la glue: arma un `SriPendingPoller` mientras haya cliente activo
+/// para la sesión actual, y lo destruye cuando el cliente desaparece o la
+/// sesión cambia.
+///
+/// Corrección del dueño, 14-sep-2026: antes el sondeo sólo se disparaba
+/// cuando el propio provider se RECONSTRUÍA por un cambio de
+/// `authControllerProvider`/`runtimeSessionProvider`, así que con una sesión
+/// estable la cifra quedaba congelada desde que se entró.
+class SriPendingNotifier extends Notifier<SriPendingStatus?> {
+  SriPendingPoller? _poller;
+  String? _pollerSessionKey;
+
+  void _disposePoller() {
+    _poller?.dispose();
+    _poller = null;
+    _pollerSessionKey = null;
+  }
 
   @override
   SriPendingStatus? build() {
     final profile = ref.watch(authControllerProvider).profile;
-    if (profile == null) return null;
+    if (profile == null) {
+      _disposePoller();
+      return null;
+    }
     final prefs = ref.watch(sharedPreferencesProvider);
     final supportedKey = _sriPendingSupportedPrefsKey(
       profile.serverUrl,
@@ -1641,53 +1671,47 @@ class _SriPendingNotifier extends Notifier<SriPendingStatus?> {
       profile.serverUrl,
       profile.database,
     );
-    if (prefs.getBool(supportedKey) == false) return null;
+    if (prefs.getBool(supportedKey) == false) {
+      _disposePoller();
+      return null;
+    }
 
+    // El permiso sobre `account.move` es por usuario: entrar con otro
+    // usuario a la misma base vuelve a intentar el sondeo aunque el
+    // `SriPendingPoller` anterior se hubiera apagado por acceso denegado.
+    final sessionKey =
+        '${profile.serverUrl}|${profile.database}|${profile.userId}';
     final client = ref.watch(runtimeSessionProvider)?.active?.client;
-    final now = DateTime.now();
-    if (client != null &&
-        (_lastProbe == null ||
-            now.difference(_lastProbe!) >= const Duration(minutes: 5))) {
-      _lastProbe = now;
-      unawaited(_probe(client, prefs, supportedKey, countKey));
+
+    // `ref.onDispose` tira el `SriPendingPoller` en cuanto este `build()` se
+    // reconstruye (cambio real de `authControllerProvider`/
+    // `runtimeSessionProvider`) o el provider se desecha del todo — con la
+    // sesión estable, ningún watch cambia, `build()` no se reejecuta, y el
+    // temporizador interno del poller sigue vivo sin que nada lo toque.
+    ref.onDispose(_disposePoller);
+
+    if (client == null) {
+      _disposePoller();
+    } else if (_poller == null || _pollerSessionKey != sessionKey) {
+      _disposePoller();
+      _pollerSessionKey = sessionKey;
+      final foreground = ref.watch(_appForegroundSignalProvider);
+      _poller = SriPendingPoller(
+        client: client,
+        prefs: prefs,
+        supportedKey: supportedKey,
+        countKey: countKey,
+        foreground: foreground.stream,
+        onStatusChanged: (status) {
+          if (ref.mounted) state = status;
+        },
+        onWarning: (message) => logger.w('[SriPending]', message),
+      );
     }
 
     final cachedCount = prefs.getInt(countKey);
     if (cachedCount == null || cachedCount <= 0) return null;
     return SriPendingStatus(count: cachedCount, isLastReading: client == null);
-  }
-
-  Future<void> _probe(
-    OdooClient client,
-    SharedPreferences prefs,
-    String supportedKey,
-    String countKey,
-  ) async {
-    try {
-      final hasField = await client.hasField('account.move', 'edi_state');
-      await prefs.setBool(supportedKey, hasField);
-      if (!hasField) {
-        await prefs.remove(countKey);
-        if (ref.mounted) state = null;
-        return;
-      }
-      final count = await client.searchCount(
-        model: 'account.move',
-        domain: const [
-          ['edi_state', 'in', ['to_send', 'to_cancel']],
-        ],
-      );
-      final resolved = count ?? 0;
-      await prefs.setInt(countKey, resolved);
-      if (ref.mounted) {
-        state = resolved <= 0
-            ? null
-            : SriPendingStatus(count: resolved, isLastReading: false);
-      }
-    } catch (_) {
-      // Sin red, o el servidor falló al contar: se conserva la última
-      // lectura guardada, nunca un error visible en la barra superior.
-    }
   }
 }
 
@@ -2538,7 +2562,7 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
                           (ref.watch(homeCashSessionsProvider).value ??
                                   const [])
                               .isNotEmpty,
-                      sriPending: ref.watch(_sriPendingProvider),
+                      sriPending: ref.watch(sriPendingProvider),
                     ),
                     onLogout: () async {
                       await ref.read(authControllerProvider.notifier).close();

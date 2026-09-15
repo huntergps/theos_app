@@ -89,6 +89,11 @@ dev_dependencies:
   # Misma versión que odoo_sdk/theos_pos_core/theos_pos, para las pruebas de
   # widget de las pantallas de sincronización (Sync-01/02).
   mocktail: ^1.0.5
+  # Tiempo simulado para probar el `Timer.periodic` de `SriPendingPoller`
+  # (sri_pending_poller_test.dart) sin esperar 5 minutos de verdad. Ya venía
+  # transitivo por `flutter_test`; se declara directo por la misma razón que
+  # `crypto` más arriba.
+  fake_async: ^1.3.3
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
