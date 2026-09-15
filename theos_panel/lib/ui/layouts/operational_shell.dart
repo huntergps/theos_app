@@ -12,6 +12,7 @@ import 'package:orbi_runtime/orbi_runtime.dart'
         realtimeStatusLabel;
 
 import '../../app/theme/orbi_theme.dart';
+import '../../features/auth/saved_servers.dart' show ServerEnvironment;
 import '../components/orbi_brand.dart';
 import 'workspace_lock_screen.dart';
 
@@ -50,6 +51,10 @@ final class OperationalContext {
     this.storageIsVolatile = false,
     this.serverClock,
     this.offlineBlockedMessage,
+    this.environment,
+    this.deviceName,
+    this.cashSessionOpen = false,
+    this.sriPending,
   });
 
   final String server;
@@ -134,6 +139,51 @@ final class OperationalContext {
   /// solo cuando la próxima sincronización buena lo confirma. `null` es el
   /// caso normal — nunca un bloqueo inventado por este marco.
   final String? offlineBlockedMessage;
+  /// Ambiente del servidor activo — «Pruebas» o «Producción», lo dice el
+  /// dueño servidor por servidor al guardarlo (`SavedServer.environment`,
+  /// `router.dart` lo empareja por URL+base contra los accesos guardados).
+  /// `null` cuando no se marcó nada: no se pinta ninguna píldora, nunca se
+  /// adivina del nombre del servidor.
+  final ServerEnvironment? environment;
+
+  /// Nombre del equipo para el pie, junto a servidor y base
+  /// (`DeviceNameStore`, `orbi/device/name` — por INSTALACIÓN, no por
+  /// usuario). `null` o vacío no se pinta.
+  final String? deviceName;
+
+  /// Si hay una sesión de caja abierta para quien tiene el permiso
+  /// `cashier` — mismo lector que ya usa Inicio
+  /// (`homeCashSessionsProvider`, `home_dashboard_providers.dart`); este
+  /// marco no repite la consulta. `false` por omisión: nunca una píldora de
+  /// caja sin haber comprobado una sesión real.
+  final bool cashSessionOpen;
+
+  /// Comprobantes electrónicos pendientes del SRI. `null` cuando el
+  /// servidor no tiene el campo (`account.move.edi_state`, de
+  /// `account_edi` — del que depende `l10n_ec_edi`) o cuando nunca se pudo
+  /// contar: nunca una cifra inventada.
+  final SriPendingStatus? sriPending;
+}
+
+/// Lo que necesita la píldora «N pendientes SRI»: la última cuenta conocida
+/// de comprobantes electrónicos pendientes de autorizar o de anular ante el
+/// SRI (`account.move.edi_state` en `to_send`/`to_cancel` —
+/// `account_edi/models/account_move.py:18-23`, el módulo genérico del que
+/// depende `l10n_ec_edi`), y si esa cuenta es una lectura fresca o la
+/// última que se pudo tomar sin conexión.
+final class SriPendingStatus {
+  const SriPendingStatus({required this.count, this.isLastReading = false});
+
+  /// Siempre mayor que cero: con 0 pendientes, quien arma este contexto
+  /// (`router.dart`) pasa `null` en vez de construir una instancia — la
+  /// píldora se apaga así, nunca mostrando «0 pendientes SRI».
+  final int count;
+
+  /// `true` cuando la cifra viene de la última sincronización con éxito, no
+  /// de un sondeo hecho ahora mismo (sin conexión, o sin cliente activo) —
+  /// la píldora lo dice como «(última lectura)» para no dar a entender que
+  /// se confirmó en este instante.
+  final bool isLastReading;
 }
 
 /// Lo que necesita el reloj del pie para pintar la hora del servidor en vez
@@ -600,6 +650,34 @@ class _OperationalShellState extends State<OperationalShell> {
                     tooltip: 'Actividades pendientes',
                     onPressed: () => widget.onNavigate(_kActivitiesPath),
                   ),
+                // Ambiente del servidor — nunca los dos a la vez, y ninguno
+                // cuando el dueño no lo marcó (orden del dueño, 14-sep-2026).
+                if (ctx.environment != null)
+                  _InfoPillCommandBarItem(
+                    key: const Key('shell-environment-pill'),
+                    label: ctx.environment == ServerEnvironment.production
+                        ? 'Producción'
+                        : 'Pruebas',
+                    color: (r) =>
+                        ctx.environment == ServerEnvironment.production
+                        ? r.systemFillColorCritical
+                        : r.systemFillColorCaution,
+                  ),
+                if (ctx.cashSessionOpen)
+                  _InfoPillCommandBarItem(
+                    key: const Key('shell-cash-session-pill'),
+                    label: 'Caja abierta',
+                    color: (r) => r.systemFillColorSuccess,
+                  ),
+                if ((ctx.sriPending?.count ?? 0) > 0)
+                  _InfoPillCommandBarItem(
+                    key: const Key('shell-sri-pending-pill'),
+                    label: ctx.sriPending!.isLastReading
+                        ? '${ctx.sriPending!.count} pendientes SRI '
+                              '(última lectura)'
+                        : '${ctx.sriPending!.count} pendientes SRI',
+                    color: (r) => r.systemFillColorCaution,
+                  ),
                 _ConnectivityCommandBarItem(
                   key: const Key('shell-connectivity-pill'),
                   context: ctx,
@@ -892,6 +970,19 @@ class _OperationalShellState extends State<OperationalShell> {
                           _iconValue(FluentIcons.globe, ctx.server, r),
                           _footerGap(r),
                           _iconValue(FluentIcons.database, ctx.database, r),
+                          // Junto a servidor y base, como pidió el dueño
+                          // (14-sep-2026). Vacío/`null` no se pinta: nunca un
+                          // segmento de más cuando `DeviceNameStore` todavía
+                          // no resolvió nada.
+                          if (ctx.deviceName != null &&
+                              ctx.deviceName!.isNotEmpty) ...[
+                            _footerGap(r),
+                            _iconValue(
+                              FluentIcons.device_run,
+                              ctx.deviceName!,
+                              r,
+                            ),
+                          ],
                           _footerGap(r),
                           _statusDot(_connectionColor(r)),
                           const SizedBox(width: 6),
@@ -1248,6 +1339,77 @@ class _RealtimeStatusPill extends StatelessWidget {
     // Nunca rojo: no es un error, es un servidor sin el módulo.
     RealtimeStatus.disabled => r.systemFillColorCaution,
   };
+}
+
+/// Píldora de sólo lectura para la barra superior, reutilizada por ambiente,
+/// caja abierta y pendientes del SRI — mismo mecanismo de extensión de
+/// `CommandBarItem` que [_ConnectivityCommandBarItem] y
+/// [_RealtimeStatusCommandBarItem], factorizado en un solo sitio para no
+/// repetir tres veces más la conmutación primario/desbordamiento.
+class _InfoPillCommandBarItem extends CommandBarItem {
+  const _InfoPillCommandBarItem({
+    super.key,
+    required this.label,
+    required this.color,
+  });
+
+  final String label;
+  final Color Function(ResourceDictionary) color;
+
+  @override
+  Widget build(BuildContext buildContext, CommandBarItemDisplayMode mode) {
+    final pill = _InfoPill(key: key, label: label, color: color);
+    switch (mode) {
+      case CommandBarItemDisplayMode.inPrimary:
+      case CommandBarItemDisplayMode.inPrimaryCompact:
+        return CommandBarItemInPrimary(child: pill);
+      case CommandBarItemDisplayMode.inSecondary:
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+          child: pill,
+        );
+    }
+  }
+}
+
+/// El mismo dibujo que [_ConnectivityPill]/[_RealtimeStatusPill] (punto de
+/// color + texto), pero con la etiqueta y el color como parámetros — nada
+/// que decidir aquí, sólo pintar lo que ya decidió quien construye el
+/// [OperationalContext].
+class _InfoPill extends StatelessWidget {
+  const _InfoPill({super.key, required this.label, required this.color});
+
+  final String label;
+  final Color Function(ResourceDictionary) color;
+
+  @override
+  Widget build(BuildContext buildContext) {
+    final theme = FluentTheme.of(buildContext);
+    final resolved = color(theme.resources);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: resolved.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: resolved),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(color: resolved, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(color: resolved, fontWeight: FontWeight.w600),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 /// El avatar y su menú, en la barra superior.

@@ -23,6 +23,9 @@ import '../features/collection/collection_session_hub_screen.dart';
 import '../features/collection/collection_supervised_session_screen.dart';
 import '../features/approvals/approval_contracts.dart';
 import '../features/approvals/approvals_screen.dart';
+import '../features/auth/saved_servers.dart';
+import '../features/home/home_dashboard_providers.dart'
+    show homeCashSessionsProvider;
 import '../features/notifications/notification_inbox.dart';
 import '../features/sales/sale_editor.dart';
 import '../features/sales/durable_sale_draft_store.dart';
@@ -31,6 +34,7 @@ import '../features/sales/sale_draft_workspace_bar.dart';
 import '../features/sales/legacy_draft_inspector.dart';
 import '../features/sales/legacy_draft_notice.dart';
 import '../features/settings/settings_screen.dart';
+import 'device_name_store.dart';
 import '../features/orders/orders_screen.dart';
 import '../features/orders/orders_contracts.dart';
 import '../features/warehouse/warehouse_screen.dart';
@@ -1311,6 +1315,132 @@ class _OdooVersionNotifier extends Notifier<String?> {
   }
 }
 
+/// Ambiente del servidor ACTIVO (`OperationalContext.environment`), buscado
+/// por URL+base contra los accesos guardados (`SavedServersStore`) — el
+/// mismo criterio de identidad que ya usa `upsert()` para detectar
+/// duplicados. `null` sin perfil, sin acceso guardado que coincida, o si
+/// nunca se marcó ambiente para ese acceso — nunca se adivina del nombre del
+/// servidor (orden del dueño, 14-sep-2026).
+ServerEnvironment? _environmentFor(
+  SavedServersStore store,
+  AuthProfile? profile,
+) {
+  if (profile == null) return null;
+  try {
+    final normalizedUrl = SavedServersStore.normalizeUrl(profile.serverUrl);
+    for (final server in store.load()) {
+      if (server.url == normalizedUrl && server.database == profile.database) {
+        return server.environment;
+      }
+    }
+  } catch (_) {
+    // Una URL guardada que ya no normaliza, o un almacén corrupto: sin
+    // ambiente que mostrar, nunca un error que tumbe el armazón.
+  }
+  return null;
+}
+
+/// Claves de `SharedPreferences` para la señal del SRI — misma forma que
+/// `_odooVersionPrefsKey`/`_presenceSupportedPrefsKey`: una por servidor+base,
+/// para que dos instancias no se pisen la lectura.
+String _sriPendingSupportedPrefsKey(String serverUrl, String database) =>
+    'orbi/sri_pending_supported/$serverUrl|$database';
+
+String _sriPendingCountPrefsKey(String serverUrl, String database) =>
+    'orbi/sri_pending_count/$serverUrl|$database';
+
+final _sriPendingProvider =
+    NotifierProvider<_SriPendingNotifier, SriPendingStatus?>(
+      _SriPendingNotifier.new,
+    );
+
+/// Cuenta de comprobantes electrónicos pendientes del SRI, para la píldora
+/// «N pendientes SRI» de la barra superior.
+///
+/// El campo verificado en el código de Odoo 19 es el genérico
+/// `account.move.edi_state`
+/// (`odoo/addons/account_edi/models/account_move.py:18-23`, calculado en
+/// `_compute_edi_state`, líneas 42-55): `to_send` es un comprobante que
+/// todavía no se envió a autorizar, `to_cancel` uno cuya anulación sigue
+/// pendiente. `l10n_ec_edi` (`enterprise/l10n_ec_edi/__manifest__.py:17`)
+/// depende de `account_edi` y no redefine ese campo — es el mismo que ya usa
+/// el SRI ecuatoriano, así que no hacía falta un campo propio de
+/// `l10n_ec_edi` (no lo hay: se buscó en todo `enterprise/l10n_ec_edi` y
+/// `odoo/addons/l10n_ec*` sin encontrar un booleano o estado equivalente
+/// específico de Ecuador).
+///
+/// Mismo patrón que `_PresenceSupportedNotifier`: primero se sonda si el
+/// campo existe (`OdooClient.hasField`, que cachea por modelo) y se guarda
+/// la respuesta; si no existe, la señal queda apagada para siempre en esa
+/// sesión. Si existe, se cuenta con `searchCount` cuando hay cliente activo,
+/// como mucho una vez cada 5 minutos, y el último valor se guarda para
+/// mostrarlo sin conexión como «(última lectura)».
+class _SriPendingNotifier extends Notifier<SriPendingStatus?> {
+  DateTime? _lastProbe;
+
+  @override
+  SriPendingStatus? build() {
+    final profile = ref.watch(authControllerProvider).profile;
+    if (profile == null) return null;
+    final prefs = ref.watch(sharedPreferencesProvider);
+    final supportedKey = _sriPendingSupportedPrefsKey(
+      profile.serverUrl,
+      profile.database,
+    );
+    final countKey = _sriPendingCountPrefsKey(
+      profile.serverUrl,
+      profile.database,
+    );
+    if (prefs.getBool(supportedKey) == false) return null;
+
+    final client = ref.watch(runtimeSessionProvider)?.active?.client;
+    final now = DateTime.now();
+    if (client != null &&
+        (_lastProbe == null ||
+            now.difference(_lastProbe!) >= const Duration(minutes: 5))) {
+      _lastProbe = now;
+      unawaited(_probe(client, prefs, supportedKey, countKey));
+    }
+
+    final cachedCount = prefs.getInt(countKey);
+    if (cachedCount == null || cachedCount <= 0) return null;
+    return SriPendingStatus(count: cachedCount, isLastReading: client == null);
+  }
+
+  Future<void> _probe(
+    OdooClient client,
+    SharedPreferences prefs,
+    String supportedKey,
+    String countKey,
+  ) async {
+    try {
+      final hasField = await client.hasField('account.move', 'edi_state');
+      await prefs.setBool(supportedKey, hasField);
+      if (!hasField) {
+        await prefs.remove(countKey);
+        if (ref.mounted) state = null;
+        return;
+      }
+      final count = await client.searchCount(
+        model: 'account.move',
+        domain: const [
+          ['edi_state', 'in', ['to_send', 'to_cancel']],
+        ],
+      );
+      final resolved = count ?? 0;
+      await prefs.setInt(countKey, resolved);
+      if (ref.mounted) {
+        state = resolved <= 0
+            ? null
+            : SriPendingStatus(count: resolved, isLastReading: false);
+      }
+    } catch (_) {
+      // Sin red, o el servidor falló al contar: se conserva la última
+      // lectura guardada, nunca un error visible en la barra superior.
+    }
+  }
+}
+
 // --- Bloque aislado: presencia y preferencias personales (13-sep-2026) -----
 // Los puertos de `orbi_runtime/lib/src/account/` armados con lo mismo que ya
 // usa el resto del router para construir puertos de sesión — mismo patrón
@@ -1672,6 +1802,13 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
             final preferencesController = ref.watch(
               appPreferencesProvider(ref.watch(preferencesScopeProvider)),
             );
+            // Mismo patrón que `preferencesController`: un `ChangeNotifier`
+            // por fuera de Riverpod, escuchado más abajo con
+            // `AnimatedBuilder` para que editarlo en Ajustes se vea en el
+            // pie sin recargar la aplicación.
+            final deviceNameController = ref.watch(
+              deviceNameControllerProvider,
+            );
             // Locking lives in its own small `Consumer`, not in this
             // provider's outer scope: watching it up there would make every
             // lock/unlock rebuild the whole `GoRouter` (see
@@ -1906,7 +2043,14 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
             return ValueListenableBuilder<RuntimeStorageMode>(
               valueListenable: storageModeListenable,
               builder: (context, storageMode, _) => AnimatedBuilder(
-              animation: preferencesController,
+              // `Listenable.merge` en vez de dos `AnimatedBuilder` anidados:
+              // el nombre del equipo (`DeviceNameController`) necesita el
+              // mismo redibujado en caliente que ya tenía `preferencesController`,
+              // sin sumar otra capa de anidamiento a esta rama.
+              animation: Listenable.merge([
+                preferencesController,
+                deviceNameController,
+              ]),
               builder: (context, _) => StreamBuilder<SyncSnapshot>(
                 stream:
                     coordinator?.snapshots ??
@@ -2063,6 +2207,20 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
                       offlineBlockedMessage: ref.watch(
                         _offlineAllowanceBlockMessageProvider,
                       ),
+                      environment: _environmentFor(
+                        ref.watch(savedServersStoreProvider),
+                        profile,
+                      ),
+                      deviceName: deviceNameController.name,
+                      // Mismo lector que ya usa Inicio
+                      // (`homeCashSessionsProvider`): sin duplicar la
+                      // consulta, `.value` toma la última lista conocida
+                      // aunque el `FutureProvider` esté recargando.
+                      cashSessionOpen:
+                          (ref.watch(homeCashSessionsProvider).value ??
+                                  const [])
+                              .isNotEmpty,
+                      sriPending: ref.watch(_sriPendingProvider),
                     ),
                     onLogout: () async {
                       await ref.read(authControllerProvider.notifier).close();
@@ -2518,6 +2676,9 @@ final orbiRouterProvider = Provider<GoRouter>((ref) {
                 final presenter = ref.watch(notificationPresenterProvider);
                 return SettingsScreen(
                   controller: preferences,
+                  deviceNameController: ref.watch(
+                    deviceNameControllerProvider,
+                  ),
                   permissionAction: presenter == null
                       ? null
                       : NotificationPermissionAction(presenter),

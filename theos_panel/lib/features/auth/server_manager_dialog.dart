@@ -99,6 +99,9 @@ class _ServerManagerDialogState extends State<_ServerManagerDialog> {
   String? _snapshot;
   bool _busy = false;
   bool _creating = true;
+  // «Sin indicar» por omisión, tal como lo pide el dueño (14-sep-2026): Orbi
+  // nunca adivina el ambiente de un servidor nuevo.
+  ServerEnvironment? _environment;
   // En ancho compacto siempre se arranca en la lista (Paso 1); nunca directo
   // al editor, ni siquiera con la lista vacía — tocar «Nuevo servidor» sigue
   // siendo el único camino al Paso 2, igual para "no hay nada guardado" que
@@ -139,6 +142,7 @@ class _ServerManagerDialogState extends State<_ServerManagerDialog> {
         _name.text = server.name;
         _url.text = server.url;
         _database.text = server.database;
+        _environment = server.environment;
         _snapshot = _formSnapshot();
       }
     } on FormatException catch (e) {
@@ -282,6 +286,7 @@ class _ServerManagerDialogState extends State<_ServerManagerDialog> {
       _name.text = server.name;
       _url.text = server.url;
       _database.text = server.database;
+      _environment = server.environment;
       _snapshot = _formSnapshot();
     });
   }
@@ -295,7 +300,8 @@ class _ServerManagerDialogState extends State<_ServerManagerDialog> {
   }
 
   String _formSnapshot() =>
-      '${_name.text}\u0000${_url.text}\u0000${_database.text}';
+      '${_name.text}\u0000${_url.text}\u0000${_database.text}'
+      '\u0000${_environment?.index ?? -1}';
   bool get _hasChanges => _snapshot != _formSnapshot();
 
   Future<bool> _confirmDiscard() async {
@@ -340,6 +346,7 @@ class _ServerManagerDialogState extends State<_ServerManagerDialog> {
       _name.clear();
       _url.text = _servers.isEmpty ? widget.initialUrl : '';
       _database.text = _servers.isEmpty ? widget.initialDatabase : '';
+      _environment = null;
       _snapshot = _formSnapshot();
     });
     return true;
@@ -403,6 +410,7 @@ class _ServerManagerDialogState extends State<_ServerManagerDialog> {
         name: name,
         url: url,
         database: database,
+        environment: _environment,
       );
     } on FormatException catch (e) {
       // Lo único que aquí sigue fallando después de validateUrl() es una
@@ -459,6 +467,7 @@ class _ServerManagerDialogState extends State<_ServerManagerDialog> {
         _name.clear();
         _url.text = _servers.isEmpty ? widget.initialUrl : '';
         _database.text = _servers.isEmpty ? widget.initialDatabase : '';
+        _environment = null;
         _snapshot = _formSnapshot();
       });
     } catch (error) {
@@ -910,6 +919,31 @@ class _ServerManagerDialogState extends State<_ServerManagerDialog> {
                   ),
                 ),
                 _databaseField(),
+                OrbiField(
+                  label: 'Ambiente',
+                  child: ComboBox<ServerEnvironment?>(
+                    key: const ValueKey('server_environment'),
+                    isExpanded: true,
+                    value: _environment,
+                    // Lo dice el dueño servidor por servidor — nunca se
+                    // adivina, así que «Sin indicar» siempre es una opción
+                    // explícita, no la ausencia de selección.
+                    items: const [
+                      ComboBoxItem(value: null, child: Text('Sin indicar')),
+                      ComboBoxItem(
+                        value: ServerEnvironment.test,
+                        child: Text('Pruebas'),
+                      ),
+                      ComboBoxItem(
+                        value: ServerEnvironment.production,
+                        child: Text('Producción'),
+                      ),
+                    ],
+                    onChanged: _busy
+                        ? null
+                        : (value) => setState(() => _environment = value),
+                  ),
+                ),
               ],
             ),
           ],

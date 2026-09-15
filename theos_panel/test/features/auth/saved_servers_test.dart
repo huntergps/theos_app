@@ -23,6 +23,60 @@ void main() {
     expect(store.load(), isEmpty);
   });
 
+  test(
+    'keeps environment and reads old entries without the field as null',
+    () async {
+      final preferences = await SharedPreferences.getInstance();
+      final store = SavedServersStore(preferences);
+      await store.upsert(
+        SavedServer(
+          id: 'test-server',
+          name: 'Mepriga',
+          url: 'https://mepriga.example.com',
+          database: 'mepriga',
+          environment: ServerEnvironment.test,
+        ),
+      );
+      expect(
+        store.load().single.environment,
+        ServerEnvironment.test,
+      );
+
+      // Un acceso guardado ANTES de que existiera este campo no trae la
+      // clave `environment` en absoluto — la versión sigue siendo 1, y debe
+      // seguir cargando, sólo que sin ambiente («sin indicar»).
+      final legacyPayload = jsonEncode({
+        'version': 1,
+        'servers': [
+          {
+            'id': 'legacy',
+            'name': 'Servidor viejo',
+            'url': 'https://legacy.example.com',
+            'database': 'legacy',
+          },
+        ],
+      });
+      SharedPreferences.setMockInitialValues({
+        SavedServersStore.key: legacyPayload,
+      });
+      final legacyPreferences = await SharedPreferences.getInstance();
+      final legacyServer = SavedServersStore(legacyPreferences).load().single;
+      expect(legacyServer.environment, isNull);
+
+      // Al volver a guardar ese mismo acceso, el campo queda escrito de
+      // forma explícita (aunque sea `null`), tal como pide el diseño.
+      final legacyStore = SavedServersStore(legacyPreferences);
+      await legacyStore.upsert(legacyServer);
+      final rewritten = jsonDecode(
+        legacyPreferences.getString(SavedServersStore.key)!,
+      );
+      expect(
+        (rewritten['servers'] as List).single,
+        containsPair('environment', isNull),
+      );
+    },
+  );
+
   test('normalizes valid URLs and rejects unsafe URLs', () {
     expect(
       SavedServersStore.normalizeUrl('HTTP://EXAMPLE.COM/a///'),

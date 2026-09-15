@@ -2,6 +2,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:theos_panel/app/device_name_store.dart';
 import 'package:theos_panel/app/preferences/app_preferences.dart';
 import 'package:theos_panel/features/settings/settings_screen.dart';
 import 'package:theos_panel/ui/fluent/orbi_fluent_theme.dart';
@@ -23,10 +24,16 @@ Future<AppPreferencesController> _controller() async {
   return controller;
 }
 
-Widget _host(AppPreferencesController controller) => FluentApp(
-  theme: OrbiFluentTheme.light,
-  home: SettingsScreen(controller: controller),
-);
+Future<Widget> _host(AppPreferencesController controller) async {
+  final prefs = await SharedPreferences.getInstance();
+  return FluentApp(
+    theme: OrbiFluentTheme.light,
+    home: SettingsScreen(
+      controller: controller,
+      deviceNameController: DeviceNameController(DeviceNameStore(prefs)),
+    ),
+  );
+}
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
@@ -35,7 +42,7 @@ void main() {
     tester,
   ) async {
     final controller = await _controller();
-    await tester.pumpWidget(_host(controller));
+    await tester.pumpWidget(await _host(controller));
     await tester.pump();
 
     expect(find.text('Tema'), findsOneWidget);
@@ -58,7 +65,7 @@ void main() {
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
       final controller = await _controller();
-      await tester.pumpWidget(ProviderScope(child: _host(controller)));
+      await tester.pumpWidget(ProviderScope(child: await _host(controller)));
       await tester.pump();
 
       expect(find.textContaining('Tamaño de texto'), findsOneWidget);
@@ -79,7 +86,7 @@ void main() {
 
   testWidgets('elegir un tema distinto lo aplica de inmediato', (tester) async {
     final controller = await _controller();
-    await tester.pumpWidget(_host(controller));
+    await tester.pumpWidget(await _host(controller));
     await tester.pump();
 
     expect(controller.snapshot.themeMode, PreferenceThemeMode.system);
@@ -104,7 +111,7 @@ void main() {
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
       final controller = await _controller();
-      await tester.pumpWidget(ProviderScope(child: _host(controller)));
+      await tester.pumpWidget(ProviderScope(child: await _host(controller)));
       await tester.pump();
 
       expect(
@@ -134,7 +141,7 @@ void main() {
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
       final controller = await _controller();
-      await tester.pumpWidget(ProviderScope(child: _host(controller)));
+      await tester.pumpWidget(ProviderScope(child: await _host(controller)));
       await tester.pump();
 
       expect(
@@ -173,7 +180,7 @@ void main() {
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
       final controller = await _controller();
-      await tester.pumpWidget(ProviderScope(child: _host(controller)));
+      await tester.pumpWidget(ProviderScope(child: await _host(controller)));
       await tester.pump();
 
       for (final label in const ['Ventas', 'Caja', 'Sistema']) {
@@ -220,7 +227,7 @@ void main() {
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
       final controller = await _controller();
-      await tester.pumpWidget(ProviderScope(child: _host(controller)));
+      await tester.pumpWidget(ProviderScope(child: await _host(controller)));
       await tester.pump();
 
       expect(find.textContaining('acción consciente'), findsNothing);
@@ -238,7 +245,7 @@ void main() {
       // teal de Orbi antes de tocar nada.
       expect(controller.snapshot.accentSeed, 0xFF007E82);
 
-      await tester.pumpWidget(_host(controller));
+      await tester.pumpWidget(await _host(controller));
       await tester.pump();
 
       await tester.tap(find.byKey(const Key('accent-swatch-azul')));

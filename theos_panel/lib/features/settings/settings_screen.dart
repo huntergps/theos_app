@@ -2,9 +2,11 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:odoo_widgets/odoo_widgets.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 
+import '../../app/device_name_store.dart';
 import '../../app/preferences/app_preferences.dart';
 import '../../ui/fluent/orbi_page.dart';
 import '../auth/pin_enrollment_section.dart';
+import 'device_name_section.dart';
 import 'message_durations_section.dart';
 
 /// Cómo se dice cada modo de tema. El `enum` en sí nunca llega a pantalla
@@ -64,9 +66,11 @@ class SettingsScreen extends StatelessWidget {
   const SettingsScreen({
     super.key,
     required this.controller,
+    required this.deviceNameController,
     this.permissionAction,
   });
   final AppPreferencesController controller;
+  final DeviceNameController deviceNameController;
   final NotificationPermissionAction? permissionAction;
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
@@ -281,6 +285,11 @@ class SettingsScreen extends StatelessWidget {
                   ),
                 ],
               ),
+            ),
+            const SizedBox(height: 16),
+            _SettingsGroup(
+              title: 'Equipo',
+              child: DeviceNameSection(controller: deviceNameController),
             ),
             const SizedBox(height: 16),
             const PinEnrollmentSection(),

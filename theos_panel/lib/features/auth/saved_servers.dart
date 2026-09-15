@@ -6,6 +6,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../app/preferences/app_preferences.dart';
 
+/// Ambiente de un servidor guardado — lo dice el DUEÑO servidor por
+/// servidor, nunca Odoo ni el nombre del servidor (orden del dueño,
+/// 14-sep-2026: «no es un parámetro de Odoo ni se detecta sola»). Un
+/// [SavedServer] sin ambiente elegido queda en `null` («sin indicar»), y esa
+/// es la representación por omisión de cualquier acceso guardado antes de
+/// que existiera este campo.
+enum ServerEnvironment { test, production }
+
 /// Non-secret connection metadata used to restore a server choice at login.
 ///
 /// Credentials are intentionally not part of this model or its persisted form.
@@ -15,6 +23,7 @@ final class SavedServer {
     required String name,
     required String url,
     required String database,
+    this.environment,
   }) : name = _requiredText(name, 'name'),
        url = SavedServersStore.normalizeUrl(url),
        database = _requiredText(database, 'database') {
@@ -28,12 +37,28 @@ final class SavedServer {
   final String url;
   final String database;
 
+  /// `null` = «sin indicar». Nunca se adivina de la URL ni de ningún otro
+  /// dato del servidor.
+  final ServerEnvironment? environment;
+
   Map<String, dynamic> toJson() => {
     'id': id,
     'name': name,
     'url': url,
     'database': database,
+    // Se escribe SIEMPRE, aunque sea `null`: un acceso guardado antes de
+    // este campo se leía sin él (ver `load()`), pero cualquier guardado
+    // desde ahora en adelante deja constancia explícita de «sin indicar».
+    'environment': environment?.name,
   };
+
+  static ServerEnvironment? _environmentFrom(Object? value) {
+    if (value is! String) return null;
+    final matches = ServerEnvironment.values.where(
+      (item) => item.name == value,
+    );
+    return matches.isEmpty ? null : matches.first;
+  }
 
   static String _requiredText(String value, String field) {
     final trimmed = value.trim();
@@ -81,6 +106,12 @@ final class SavedServersStore {
             name: map['name'] as String,
             url: map['url'] as String,
             database: map['database'] as String,
+            // Ausente en cualquier acceso guardado antes de este campo, o un
+            // nombre que ya no existe en el enum: en los dos casos cae a
+            // `null` («sin indicar»), nunca tira la entrada entera por la
+            // borda — mismo criterio leniente que ya usa
+            // `AppPreferencesSnapshot.fromJson` para sus enums.
+            environment: SavedServer._environmentFrom(map['environment']),
           ),
         );
       }
