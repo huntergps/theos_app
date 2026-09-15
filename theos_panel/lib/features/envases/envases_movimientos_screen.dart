@@ -5,7 +5,9 @@ import 'package:odoo_widgets/odoo_widgets.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 
 import '../../ui/components/orbi_components.dart';
+import '../../ui/export/export_listing.dart';
 import '../../ui/fluent/orbi_page.dart';
+import 'widgets/lista_actualizado_en.dart';
 
 /// Movimientos de envases (ENV-02): traza cada línea de `stock.move.line`
 /// que tocó una ubicación de envases, del más reciente al más antiguo.
@@ -13,12 +15,25 @@ import '../../ui/fluent/orbi_page.dart';
 /// El filtro de fechas narrows sobre la copia local ya descargada — la
 /// misma disciplina "sin conexión se ve lo último" que el resto de Envases;
 /// [onRefresh] es la única vez que esta pantalla vuelve a pedirle a Odoo.
+///
+/// `stock.move.line.envases_movimientos()` no entrega ni "tipo" (transferencia
+/// / entrega / devolución) ni "estado" del documento — sólo fecha, producto,
+/// cantidad, sentido, sede y responsable (`EnvasesMovimientoRow`). ENV-02
+/// pide esas dos columnas de más; no se fabrican aquí porque el servidor no
+/// las da todavía (ver `docs/orbi_panel/reports/` para el contrato vigente).
 class EnvasesMovimientosScreen extends StatefulWidget {
-  const EnvasesMovimientosScreen({super.key, required this.snapshots, this.onRefresh, this.isConnected});
+  const EnvasesMovimientosScreen({
+    super.key,
+    required this.snapshots,
+    this.onRefresh,
+    this.isConnected,
+    this.onExport,
+  });
 
   final Stream<EnvasesMovimientosSnapshot?> snapshots;
   final VoidCallback? onRefresh;
   final bool? isConnected;
+  final ListingExporter? onExport;
 
   @override
   State<EnvasesMovimientosScreen> createState() => _EnvasesMovimientosScreenState();
@@ -31,6 +46,7 @@ class _EnvasesMovimientosScreenState extends State<EnvasesMovimientosScreen> {
   bool _waiting = true;
   DateTime? _desde;
   DateTime? _hasta;
+  String _query = '';
 
   @override
   void initState() {
@@ -64,6 +80,17 @@ class _EnvasesMovimientosScreenState extends State<EnvasesMovimientosScreen> {
     return rows.where((row) {
       if (_desde != null && row.date.isBefore(_desde!)) return false;
       if (_hasta != null && row.date.isAfter(_hasta!)) return false;
+      if (_query.isNotEmpty) {
+        final haystack = [
+          row.productName,
+          row.pickingName ?? '',
+          row.desde ?? '',
+          row.hacia ?? '',
+          row.warehouseName ?? '',
+          row.responsableName ?? '',
+        ].join(' ').toLowerCase();
+        if (!haystack.contains(_query)) return false;
+      }
       return true;
     }).toList(growable: false);
   }
@@ -72,6 +99,7 @@ class _EnvasesMovimientosScreenState extends State<EnvasesMovimientosScreen> {
   Widget build(BuildContext context) {
     return OrbiPage(
       title: 'Movimientos de envases',
+      subtitle: 'Trazabilidad de envases retornables en toda la cadena',
       commands: [
         CommandBarButton(
           key: const Key('envases-movimientos-refresh'),
@@ -102,6 +130,11 @@ class _EnvasesMovimientosScreenState extends State<EnvasesMovimientosScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 4),
+          child: ListaActualizadoEn(cachedAt: snapshot.cachedAt),
+        ),
+        const SizedBox(height: 8),
         _filtroFechas(context),
         const SizedBox(height: 12),
         Expanded(
@@ -112,7 +145,14 @@ class _EnvasesMovimientosScreenState extends State<EnvasesMovimientosScreen> {
                   child: OrbiListing<EnvasesMovimientoRow>(
                     rows: rows,
                     storageKey: 'envases-movimientos',
+                    filterText: _query,
+                    onFilterChanged: (value) => setState(() => _query = value.trim().toLowerCase()),
+                    filterPlaceholder: 'Buscar por documento, producto o cliente',
                     onRowTap: (row) => _abrirDetalle(context, row),
+                    onExport: widget.onExport == null
+                        ? null
+                        : (bytes, name) => widget.onExport!(context, bytes, name),
+                    exportFileName: 'envases-movimientos',
                     emptyMessage: 'No hay movimientos que coincidan con el filtro.',
                     columns: [
                       OrbiColumn(key: 'date', label: 'Fecha', value: (row) => _formatDate(row.date), alwaysVisible: true),
@@ -120,15 +160,13 @@ class _EnvasesMovimientosScreenState extends State<EnvasesMovimientosScreen> {
                       OrbiColumn(key: 'producto', label: 'Producto', value: (row) => row.productName),
                       OrbiColumn(
                         key: 'cantidad',
-                        label: 'Cantidad',
+                        label: 'Unidades',
                         numeric: true,
+                        emphasis: true,
                         value: (row) => _formatQuantity(row.quantity),
                       ),
-                      OrbiColumn(
-                        key: 'sentido',
-                        label: 'Desde → Hacia',
-                        value: (row) => '${row.desde ?? '—'} → ${row.hacia ?? '—'}',
-                      ),
+                      OrbiColumn(key: 'origen', label: 'Origen', value: (row) => row.desde ?? '—'),
+                      OrbiColumn(key: 'destino', label: 'Destino', value: (row) => row.hacia ?? '—'),
                       OrbiColumn(key: 'sede', label: 'Sede', value: (row) => row.warehouseName ?? '—'),
                       OrbiColumn(key: 'responsable', label: 'Responsable', value: (row) => row.responsableName ?? '—'),
                     ],

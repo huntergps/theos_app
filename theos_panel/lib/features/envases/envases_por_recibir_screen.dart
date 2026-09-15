@@ -5,20 +5,31 @@ import 'package:odoo_widgets/odoo_widgets.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 
 import '../../ui/components/orbi_components.dart';
+import '../../ui/export/export_listing.dart';
 import '../../ui/fluent/orbi_page.dart';
+import 'envases_traslado_detalle.dart';
+import 'widgets/lista_actualizado_en.dart';
+import 'widgets/lista_estado_chip.dart';
 
 /// Envases pendientes de recibir (BODEGA-ENVASES «En tránsito», ENV-03
 /// pestaña Tránsitos): lo que ya salió de una sede y todavía no confirma
 /// llegada la sede destino.
 ///
 /// Sólo lectura y sólo estado local — la pantalla nunca decide qué llegó,
-/// eso lo hace el formulario de recepción a través de `EnvasesOperations`
-/// (`onOpenDetail` navega al detalle, que a su vez ofrece recibir/perder).
+/// eso lo hace el formulario de recepción a través de `EnvasesOperations`.
 ///
 /// Por debajo del corte ancho (el mismo 840 de `OrbiListing`) las filas se
 /// agrupan por sentido (origen → destino) en tarjetas — `OrbiListing` no
 /// agrupa, así que esta pantalla arma su propia lista angosta en vez de
 /// reusar su modo tarjeta automático.
+///
+/// En escritorio (ENV-03 «Tránsitos», BODEGA-ENVASES «En tránsito»), elegir
+/// una fila abre su detalle AL LADO, sin navegar — mismo traslado que la
+/// ficha completa (`EnvasesTrasladoDetalle`), reutilizando su cuerpo
+/// (`EnvasesTrasladoDetalleBody`) para no duplicar el estado de "dar por
+/// perdido". Sólo puede hacerlo cuando [operations] no es nulo: sin permiso
+/// de escritura la pantalla sigue navegando a la página completa, igual que
+/// antes de este cambio.
 class EnvasesPorRecibirScreen extends StatefulWidget {
   const EnvasesPorRecibirScreen({
     super.key,
@@ -27,6 +38,10 @@ class EnvasesPorRecibirScreen extends StatefulWidget {
     required this.onOpenDetail,
     this.onRefresh,
     this.isConnected,
+    this.operations,
+    this.canManage = false,
+    this.onRegistrarRecepcion,
+    this.onExport,
   });
 
   final Stream<EnvasesPorRecibirSnapshot?> snapshots;
@@ -34,6 +49,20 @@ class EnvasesPorRecibirScreen extends StatefulWidget {
   final ValueChanged<EnvasesPorRecibirRow> onOpenDetail;
   final VoidCallback? onRefresh;
   final bool? isConnected;
+
+  /// Presente sólo cuando quien compone la pantalla ya resolvió permiso de
+  /// escritura (`envasesOperationsProvider`). Habilita el panel de detalle al
+  /// lado en escritorio; nulo conserva el comportamiento anterior (navegar a
+  /// una página aparte al tocar una fila).
+  final EnvasesOperations? operations;
+  final bool canManage;
+
+  /// A dónde ir para registrar la recepción desde el panel al lado. Nulo cae
+  /// en [onOpenDetail] (abre la página de detalle completa, que a su vez
+  /// ofrece "Registrar recepción").
+  final ValueChanged<EnvasesPorRecibirRow>? onRegistrarRecepcion;
+
+  final ListingExporter? onExport;
 
   @override
   State<EnvasesPorRecibirScreen> createState() => _EnvasesPorRecibirScreenState();
@@ -47,6 +76,7 @@ class _EnvasesPorRecibirScreenState extends State<EnvasesPorRecibirScreen> {
   Object? _error;
   bool _waiting = true;
   String _query = '';
+  int? _selectedId;
 
   @override
   void initState() {
@@ -142,7 +172,11 @@ class _EnvasesPorRecibirScreenState extends State<EnvasesPorRecibirScreen> {
       children: [
         if (_error != null) _ErrorBanner(onRetry: widget.onRefresh),
         Padding(
-          padding: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.only(bottom: 4),
+          child: ListaActualizadoEn(cachedAt: snapshot.cachedAt),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(top: 8, bottom: 12),
           child: TextBox(
             key: const Key('envases-por-recibir-filter'),
             placeholder: 'Filtrar por sede o documento',
@@ -158,7 +192,9 @@ class _EnvasesPorRecibirScreenState extends State<EnvasesPorRecibirScreen> {
                     final window = MediaQuery.sizeOf(context);
                     final portrait = window.height > window.width && constraints.maxWidth < 1200;
                     final narrow = constraints.maxWidth < OrbiListing.cardBreakpoint || portrait;
-                    return narrow ? _groupedCards(context, rows) : _table(context, rows);
+                    if (narrow) return _groupedCards(context, rows);
+                    if (widget.operations != null) return _tableWithDetail(context, rows);
+                    return _table(context, rows, onRowTap: widget.onOpenDetail);
                   },
                 ),
         ),
@@ -178,9 +214,62 @@ class _EnvasesPorRecibirScreenState extends State<EnvasesPorRecibirScreen> {
         .toList(growable: false);
   }
 
-  Widget _table(BuildContext context, List<EnvasesPorRecibirRow> rows) {
+  EnvasesPorRecibirRow? _selectedRow(List<EnvasesPorRecibirRow> rows) {
+    final id = _selectedId;
+    if (id == null) return null;
+    for (final row in rows) {
+      if (row.id == id) return row;
+    }
+    return null;
+  }
+
+  /// ENV-03 «Tránsitos» / BODEGA-ENVASES «En tránsito»: la tabla a la
+  /// izquierda, el detalle del traslado elegido a la derecha — sin navegar,
+  /// para poder mirar varios traslados seguidos sin perder el filtro ni la
+  /// posición de la tabla.
+  Widget _tableWithDetail(BuildContext context, List<EnvasesPorRecibirRow> rows) {
+    final selected = _selectedRow(rows);
+    final table = _table(context, rows, onRowTap: (row) => setState(() => _selectedId = row.id));
+    if (selected == null) return table;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(flex: 3, child: table),
+        const SizedBox(width: 16),
+        SizedBox(
+          width: 380,
+          child: Card(
+            key: const Key('envases-por-recibir-detalle-panel'),
+            padding: const EdgeInsets.all(16),
+            child: SingleChildScrollView(
+              child: EnvasesTrasladoDetalleBody(
+                key: ValueKey('envases-detalle-al-lado-${selected.id}'),
+                row: selected,
+                operaciones: widget.operations!.watchOperaciones(),
+                operations: widget.operations!,
+                canManage: widget.canManage,
+                onRegistrarRecepcion: () =>
+                    (widget.onRegistrarRecepcion ?? widget.onOpenDetail)(selected),
+                // El panel se queda abierto: la insignia de estado se
+                // actualiza sola por `watchOperaciones()`, no hace falta
+                // cerrar nada.
+                onDarPorPerdido: () {},
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _table(
+    BuildContext context,
+    List<EnvasesPorRecibirRow> rows, {
+    required ValueChanged<EnvasesPorRecibirRow> onRowTap,
+  }) {
     final theme = FluentTheme.of(context);
     return Card(
+      key: const Key('envases-por-recibir-tabla'),
       backgroundColor: theme.scaffoldBackgroundColor,
       borderColor: theme.resources.surfaceStrokeColorDefault,
       borderRadius: BorderRadius.circular(12),
@@ -188,11 +277,16 @@ class _EnvasesPorRecibirScreenState extends State<EnvasesPorRecibirScreen> {
       child: OrbiListing<EnvasesPorRecibirRow>(
         rows: rows,
         storageKey: 'envases-por-recibir',
-        onRowTap: widget.onOpenDetail,
+        onRowTap: onRowTap,
+        onExport: widget.onExport == null
+            ? null
+            : (bytes, name) => widget.onExport!(context, bytes, name),
+        exportFileName: 'envases-por-recibir',
         emptyMessage: 'No hay envases por recibir que coincidan con el filtro.',
         columns: [
           OrbiColumn(key: 'name', label: 'Documento', value: (row) => row.name, alwaysVisible: true),
-          OrbiColumn(key: 'sentido', label: 'Origen → Destino', value: (row) => row.sentido),
+          OrbiColumn(key: 'origen', label: 'Origen', value: (row) => row.origenName ?? 'Origen desconocido'),
+          OrbiColumn(key: 'destino', label: 'Destino', value: (row) => row.destinoName ?? 'Destino desconocido'),
           OrbiColumn(
             key: 'fecha',
             label: 'Fecha de salida',
@@ -202,9 +296,25 @@ class _EnvasesPorRecibirScreenState extends State<EnvasesPorRecibirScreen> {
             key: 'pendientes',
             label: 'Unidades pendientes',
             numeric: true,
+            emphasis: true,
             value: (row) => _formatQuantity(row.unidadesPendientes),
           ),
-          OrbiColumn(key: 'estado', label: 'Estado local', value: (row) => _estadoLabel(_operacionDe(row.id))),
+          OrbiColumn(
+            key: 'estado',
+            label: 'Estado local',
+            value: (row) {
+              final operacion = _operacionDe(row.id);
+              return operacion == null ? '' : envasesEstadoLabel(operacion.estado, mensajeOdoo: operacion.mensajeOdoo);
+            },
+            // `OrbiColumn.badgeColor` pinta SIEMPRE una insignia cuando la
+            // columna la declara — no hay forma de decir "esta fila no
+            // tiene insignia" sin dibujar un recuadro vacío. La mayoría de
+            // filas no tiene operación local todavía (recién sincronizadas o
+            // nunca tocadas desde este equipo), así que aquí se deja texto
+            // plano; la insignia de color sí aparece en la tarjeta angosta y
+            // en el panel de detalle, donde sólo se pinta cuando SÍ hay
+            // operación (`if (operacion != null) ...`).
+          ),
         ],
       ),
     );
@@ -250,7 +360,7 @@ class _EnvasesPorRecibirScreenState extends State<EnvasesPorRecibirScreen> {
               Text('Pendientes: ${_formatQuantity(row.unidadesPendientes)}'),
               if (operacion != null) ...[
                 const SizedBox(height: 8),
-                OrbiStatusChip(label: _estadoLabel(operacion), icon: FluentIcons.sync_status_solid),
+                ListaEstadoChip.operacion(operacion),
               ],
             ],
           ),
@@ -258,16 +368,6 @@ class _EnvasesPorRecibirScreenState extends State<EnvasesPorRecibirScreen> {
       ),
     );
   }
-}
-
-String _estadoLabel(EnvasesOperacionLocal? operacion) {
-  if (operacion == null) return '';
-  return switch (operacion.estado) {
-    EnvasesOperacionEstado.pendienteDeEnviar => 'Pendiente de enviar',
-    EnvasesOperacionEstado.enviada => 'Enviada',
-    EnvasesOperacionEstado.rechazada => operacion.mensajeOdoo ?? 'Rechazada por Odoo',
-    EnvasesOperacionEstado.revisarAMano => 'Revisar a mano',
-  };
 }
 
 class _ErrorBanner extends StatelessWidget {

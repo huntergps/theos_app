@@ -5,8 +5,10 @@ import 'package:odoo_widgets/odoo_widgets.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 
 import '../../ui/components/orbi_components.dart';
+import '../../ui/export/export_listing.dart';
 import '../../ui/fluent/orbi_page.dart';
 import '../../ui/state_labels.dart';
+import 'widgets/lista_estado_chip.dart';
 
 /// Saldo por tercero (envases en custodia de un cliente o proveedor):
 /// `l10n_ec.envases.saldo.tercero`, una vista SQL derivada de
@@ -28,10 +30,12 @@ class EnvasesSaldoTercerosScreen extends StatefulWidget {
     super.key,
     required this.snapshots,
     this.onRefresh,
+    this.onExport,
   });
 
   final Stream<EnvasesSaldoTercerosSnapshot?> snapshots;
   final VoidCallback? onRefresh;
+  final ListingExporter? onExport;
 
   @override
   State<EnvasesSaldoTercerosScreen> createState() =>
@@ -200,6 +204,10 @@ class _EnvasesSaldoTercerosScreenState
       child: OrbiListing<EnvasesPartnerBalanceRow>(
         rows: rows,
         storageKey: 'envases-saldo-terceros',
+        onExport: widget.onExport == null
+            ? null
+            : (bytes, name) => widget.onExport!(context, bytes, name),
+        exportFileName: 'envases-saldo-terceros',
         emptyMessage: 'No hay saldos que coincidan con el filtro.',
         columns: [
           OrbiColumn(
@@ -212,6 +220,7 @@ class _EnvasesSaldoTercerosScreenState
             key: 'rol',
             label: 'Rol',
             value: (row) => envasesCustodyRoleLabel(row.role),
+            badgeColor: (row) => envasesCustodyRoleColor(FluentTheme.of(context), row.role),
           ),
           OrbiColumn(
             key: 'envase',
@@ -281,10 +290,7 @@ class _EnvasesSaldoTercerosScreenState
             const SizedBox(height: 4),
             Text('Cantidad: ${_formatQuantity(row.quantity)}'),
             const SizedBox(height: 8),
-            OrbiStatusChip(
-              label: envasesCustodyRoleLabel(row.role),
-              icon: FluentIcons.contact,
-            ),
+            ListaCustodyRoleChip(role: row.role),
           ],
         ),
       ),

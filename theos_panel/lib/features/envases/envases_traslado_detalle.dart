@@ -3,9 +3,9 @@ import 'dart:async';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 
-import '../../ui/components/orbi_components.dart';
 import '../../ui/fluent/orbi_page.dart';
 import 'envases_uuid.dart';
+import 'widgets/lista_estado_chip.dart';
 
 /// Detalle de un traslado "por recibir" (ENV-03 pestaña Tránsitos, detalle):
 /// origen, destino, fecha de salida y lo pendiente, con las dos acciones que
@@ -14,7 +14,12 @@ import 'envases_uuid.dart';
 ///
 /// Nunca escribe directo a Odoo: las dos acciones pasan por
 /// [EnvasesOperations], igual que el formulario de recepción.
-class EnvasesTrasladoDetalle extends StatefulWidget {
+///
+/// Página completa (con `OrbiPage`), para la navegación en pantalla angosta.
+/// En escritorio, el mismo contenido se embebe sin la cabecera de página a
+/// través de [EnvasesTrasladoDetalleBody] — el panel «al lado» de ENV-03 y de
+/// «Detalle de traslado» en BODEGA-ENVASES.
+class EnvasesTrasladoDetalle extends StatelessWidget {
   const EnvasesTrasladoDetalle({
     super.key,
     required this.row,
@@ -41,10 +46,46 @@ class EnvasesTrasladoDetalle extends StatefulWidget {
   final VoidCallback? onDarPorPerdido;
 
   @override
-  State<EnvasesTrasladoDetalle> createState() => _EnvasesTrasladoDetalleState();
+  Widget build(BuildContext context) => OrbiPage(
+    title: row.name,
+    subtitle: row.sentido,
+    child: EnvasesTrasladoDetalleBody(
+      row: row,
+      operaciones: operaciones,
+      operations: operations,
+      canManage: canManage,
+      onRegistrarRecepcion: onRegistrarRecepcion,
+      onDarPorPerdido: onDarPorPerdido,
+    ),
+  );
 }
 
-class _EnvasesTrasladoDetalleState extends State<EnvasesTrasladoDetalle> {
+/// El contenido del detalle, sin la cabecera de página — lo reutiliza el
+/// panel lateral de escritorio de `EnvasesPorRecibirScreen` (ENV-03: «detalle
+/// al lado»), que no puede anidar un segundo `OrbiPage` dentro de la lista.
+class EnvasesTrasladoDetalleBody extends StatefulWidget {
+  const EnvasesTrasladoDetalleBody({
+    super.key,
+    required this.row,
+    required this.operaciones,
+    required this.operations,
+    required this.canManage,
+    required this.onRegistrarRecepcion,
+    this.onDarPorPerdido,
+  });
+
+  final EnvasesPorRecibirRow row;
+  final Stream<List<EnvasesOperacionLocal>> operaciones;
+  final EnvasesOperations operations;
+  final bool canManage;
+  final VoidCallback onRegistrarRecepcion;
+  final VoidCallback? onDarPorPerdido;
+
+  @override
+  State<EnvasesTrasladoDetalleBody> createState() => _EnvasesTrasladoDetalleBodyState();
+}
+
+class _EnvasesTrasladoDetalleBodyState extends State<EnvasesTrasladoDetalleBody> {
   StreamSubscription<List<EnvasesOperacionLocal>>? _subscription;
   EnvasesOperacionLocal? _operacion;
   bool _perdiendo = false;
@@ -53,6 +94,25 @@ class _EnvasesTrasladoDetalleState extends State<EnvasesTrasladoDetalle> {
   @override
   void initState() {
     super.initState();
+    _listen();
+  }
+
+  @override
+  void didUpdateWidget(covariant EnvasesTrasladoDetalleBody oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // El panel lateral reutiliza este mismo `State` al cambiar de fila
+    // seleccionada (misma posición en el árbol) — sin esto seguiría
+    // mostrando la operación del traslado anterior.
+    if (oldWidget.row.id != widget.row.id || oldWidget.operaciones != widget.operaciones) {
+      _subscription?.cancel();
+      _operacion = null;
+      _error = null;
+      _perdiendo = false;
+      _listen();
+    }
+  }
+
+  void _listen() {
     _subscription = widget.operaciones.listen((operaciones) {
       if (!mounted) return;
       setState(() {
@@ -107,55 +167,52 @@ class _EnvasesTrasladoDetalleState extends State<EnvasesTrasladoDetalle> {
   Widget build(BuildContext context) {
     final row = widget.row;
     final theme = FluentTheme.of(context);
-    return OrbiPage(
-      title: row.name,
-      subtitle: row.sentido,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (_error != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: InfoBar(title: const Text('No se pudo completar'), content: Text(_error!), severity: InfoBarSeverity.error),
-            ),
-          Card(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _line(theme, 'Origen', row.origenName ?? 'Origen desconocido'),
-                _line(theme, 'Destino', row.destinoName ?? 'Destino desconocido'),
-                _line(theme, 'Fecha de salida', _formatDate(row.fechaSalida)),
-                _line(theme, 'Unidades pendientes', _formatQuantity(row.unidadesPendientes)),
-                if (_operacion != null) ...[
-                  const SizedBox(height: 8),
-                  OrbiStatusChip(label: _estadoLabel(_operacion!), icon: FluentIcons.sync_status_solid),
-                ],
-              ],
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (_error != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: InfoBar(title: const Text('No se pudo completar'), content: Text(_error!), severity: InfoBarSeverity.error),
           ),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
+        Card(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              FilledButton(
-                key: const Key('envases-detalle-recibir'),
-                onPressed: widget.onRegistrarRecepcion,
-                child: const Text('Registrar recepción'),
-              ),
-              if (widget.canManage)
-                Button(
-                  key: const Key('envases-detalle-dar-por-perdido'),
-                  onPressed: _perdiendo ? null : _confirmarDarPorPerdido,
-                  child: _perdiendo
-                      ? const SizedBox(width: 16, height: 16, child: ProgressRing(strokeWidth: 2))
-                      : const Text('Dar por perdido'),
-                ),
+              _line(theme, 'Origen', row.origenName ?? 'Origen desconocido'),
+              _line(theme, 'Destino', row.destinoName ?? 'Destino desconocido'),
+              _line(theme, 'Fecha de salida', _formatDate(row.fechaSalida)),
+              _line(theme, 'Unidades pendientes', _formatQuantity(row.unidadesPendientes)),
+              if (_operacion != null) ...[
+                const SizedBox(height: 8),
+                ListaEstadoChip.operacion(_operacion!),
+              ],
             ],
           ),
-        ],
-      ),
+        ),
+        const SizedBox(height: 16),
+        Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: [
+            FilledButton(
+              key: const Key('envases-detalle-recibir'),
+              onPressed: widget.onRegistrarRecepcion,
+              child: const Text('Registrar recepción'),
+            ),
+            if (widget.canManage)
+              Button(
+                key: const Key('envases-detalle-dar-por-perdido'),
+                onPressed: _perdiendo ? null : _confirmarDarPorPerdido,
+                child: _perdiendo
+                    ? const SizedBox(width: 16, height: 16, child: ProgressRing(strokeWidth: 2))
+                    : const Text('Dar por perdido'),
+              ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -173,13 +230,6 @@ class _EnvasesTrasladoDetalleState extends State<EnvasesTrasladoDetalle> {
 extension<T> on Iterable<T> {
   T? get firstOrNull => isEmpty ? null : first;
 }
-
-String _estadoLabel(EnvasesOperacionLocal operacion) => switch (operacion.estado) {
-  EnvasesOperacionEstado.pendienteDeEnviar => 'Pendiente de enviar',
-  EnvasesOperacionEstado.enviada => 'Enviada',
-  EnvasesOperacionEstado.rechazada => operacion.mensajeOdoo ?? 'Rechazada por Odoo',
-  EnvasesOperacionEstado.revisarAMano => 'Revisar a mano',
-};
 
 String _formatQuantity(double value) =>
     value == value.roundToDouble() ? value.toInt().toString() : value.toString();

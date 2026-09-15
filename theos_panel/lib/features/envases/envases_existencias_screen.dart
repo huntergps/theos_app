@@ -3,6 +3,7 @@ import 'package:odoo_widgets/odoo_widgets.dart';
 import 'package:orbi_runtime/orbi_runtime.dart';
 
 import '../../ui/components/orbi_components.dart';
+import '../../ui/export/export_listing.dart';
 import '../../ui/fluent/orbi_page.dart';
 import 'envases_existencias_contracts.dart';
 
@@ -25,9 +26,10 @@ import 'envases_existencias_contracts.dart';
 /// propio recuadro, y `OrbiListing.cardBadge` pinta el total del producto en
 /// la esquina del título.
 class EnvasesExistenciasScreen extends StatefulWidget {
-  const EnvasesExistenciasScreen({super.key, required this.repository});
+  const EnvasesExistenciasScreen({super.key, required this.repository, this.onExport});
 
   final EnvasesExistenciasRepository repository;
+  final ListingExporter? onExport;
 
   @override
   State<EnvasesExistenciasScreen> createState() =>
@@ -150,6 +152,10 @@ class _EnvasesExistenciasScreenState extends State<EnvasesExistenciasScreen> {
                       () => _productQuery = value.trim().toLowerCase(),
                     ),
                     filterPlaceholder: 'Filtrar por producto o unidad',
+                    onExport: widget.onExport == null
+                        ? null
+                        : (bytes, name) => widget.onExport!(context, bytes, name),
+                    exportFileName: 'envases-existencias',
                     cardBadge: (row) => '${_formatQuantity(row.total)} propios',
                     emptyMessage: 'No hay productos que coincidan con el filtro.',
                   ),

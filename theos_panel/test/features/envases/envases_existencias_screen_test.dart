@@ -277,4 +277,38 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Sin existencias'), findsOneWidget);
   });
+
+  testWidgets('existencias columns come from server locations, not hardcoded names', (tester) async {
+    // Nombres que no existen en ningún sitio cableado de la pantalla —
+    // ninguna sede real de Orbi se llama así. Si aparecieran de todos modos,
+    // sería porque alguien volvió a poner "Guayaquil"/"Galápagos" a mano.
+    final data = EnvasesExistenciasData.fromJson({
+      'columnas': [
+        {'id': 'c1', 'nombre': 'Depósito Fantasía', 'location_id': 91, 'tipo': 'sede'},
+        {'id': 'c2', 'nombre': 'Bodega Zeta', 'location_id': 92, 'tipo': 'sede'},
+      ],
+      'filas': [
+        {
+          'id': 700,
+          'nombre': 'Producto X',
+          'uom': 'Unidad',
+          'celdas': {'c1': 5.0, 'c2': 9.0},
+          'total': 14.0,
+        },
+      ],
+      'totales_columna': {'c1': 5.0, 'c2': 9.0},
+      'total_general': 14.0,
+      'pendientes': 0,
+    });
+    final repository = _FakeRepository()..onRefresh = _snapshot(data);
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await _pumpAt(tester, repository, _desktop);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Depósito Fantasía'), findsOneWidget);
+    expect(find.text('Bodega Zeta'), findsOneWidget);
+    expect(find.text('Guayaquil'), findsNothing);
+    expect(find.text('Galápagos'), findsNothing);
+  });
 }

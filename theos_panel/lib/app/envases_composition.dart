@@ -15,6 +15,8 @@ import '../features/envases/envases_por_recibir_screen.dart';
 import '../features/envases/envases_recibir_form.dart';
 import '../features/envases/envases_saldo_terceros_screen.dart';
 import '../features/envases/envases_traslado_detalle.dart';
+import '../ui/components/orbi_components.dart';
+import '../ui/export/export_listing.dart';
 import 'notification_scope_adapter.dart';
 import 'session_composition.dart';
 
@@ -133,6 +135,7 @@ final class EnvasesExistenciasRoute extends ConsumerWidget {
         '${active?.scope.scopeKey}:${active?.lease.generation}:${ref.read(capabilitySnapshotProvider)?.companyId}',
       ),
       repository: repository,
+      onExport: (ctx, bytes, name) => exportListingBytes(ctx, ref, bytes, name),
     );
   }
 }
@@ -267,6 +270,7 @@ final class EnvasesPorRecibirRoute extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final controller = ref.watch(envasesPorRecibirControllerProvider);
     final operations = ref.watch(envasesOperationsProvider);
+    final canManage = ref.watch(envasesCanManageProvider);
     if (controller == null || operations == null) {
       return const NotConfiguredPage(
         title: 'Envases',
@@ -276,9 +280,21 @@ final class EnvasesPorRecibirRoute extends ConsumerWidget {
     return EnvasesPorRecibirScreen(
       snapshots: controller.snapshots,
       operaciones: operations.watchOperaciones(),
+      // Sigue siendo lo que se usa en pantalla angosta (donde el detalle
+      // navega a página completa) y el respaldo si algún día se llama a esta
+      // pantalla sin permiso de escritura.
       onOpenDetail: (row) =>
           context.push('/envases/por-recibir/${row.id}', extra: row),
+      // En escritorio (ENV-03/BODEGA-ENVASES «detalle al lado») el botón
+      // "Registrar recepción" del panel embebido va directo al formulario:
+      // el panel ya ES el detalle, no hace falta pasar por
+      // `EnvasesTrasladoDetalleRoute` de nuevo.
+      onRegistrarRecepcion: (row) =>
+          context.push('/envases/por-recibir/${row.id}/recibir', extra: row),
+      operations: operations,
+      canManage: canManage,
       onRefresh: controller.refresh,
+      onExport: (ctx, bytes, name) => exportListingBytes(ctx, ref, bytes, name),
     );
   }
 }
@@ -308,6 +324,17 @@ class _EnvasesPorRecibirRowResolverState
     extends ConsumerState<_EnvasesPorRecibirRowResolver> {
   bool _requestedRefresh = false;
 
+  /// 🔴 Causa raíz medida en 90a37dc: `scheduleMicrotask(() =>
+  /// unawaited(controller.refresh()))` no capturaba ningún error — ni el
+  /// síncrono que lanza `readerFactory()` sin cliente activo (se evalúa
+  /// ANTES de que `unawaited` reciba nada, así que ni siquiera llega a ser
+  /// un `Future` rechazado) ni uno asíncrono real. El resultado era un
+  /// `ProgressRing` que se queda ahí para siempre, porque `_requestedRefresh`
+  /// ya quedó en `true` y nadie vuelve a pedirlo. Ahora el error se guarda y
+  /// se ofrece "Reintentar", que limpia el flag para que el próximo `build`
+  /// vuelva a intentar.
+  Object? _refreshError;
+
   @override
   Widget build(BuildContext context) {
     final extra = widget.extra;
@@ -324,9 +351,25 @@ class _EnvasesPorRecibirRowResolverState
       builder: (context, snapshot) {
         final data = snapshot.data;
         if (data == null) {
+          if (_refreshError != null) {
+            return OrbiErrorState(
+              key: const Key('envases-traslado-resolver-error'),
+              message: 'No se pudo cargar el traslado: $_refreshError',
+              onRetry: () => setState(() {
+                _refreshError = null;
+                _requestedRefresh = false;
+              }),
+            );
+          }
           if (!_requestedRefresh) {
             _requestedRefresh = true;
-            scheduleMicrotask(() => unawaited(controller.refresh()));
+            scheduleMicrotask(() async {
+              try {
+                await controller.refresh();
+              } catch (error) {
+                if (mounted) setState(() => _refreshError = error);
+              }
+            });
           }
           return const Center(
             child: ProgressRing(key: Key('envases-traslado-resolver-loading')),
@@ -519,6 +562,7 @@ final class EnvasesMovimientosRoute extends ConsumerWidget {
     return EnvasesMovimientosScreen(
       snapshots: controller.snapshots,
       onRefresh: controller.refresh,
+      onExport: (ctx, bytes, name) => exportListingBytes(ctx, ref, bytes, name),
     );
   }
 }
@@ -599,6 +643,7 @@ final class EnvasesSaldoTercerosRoute extends ConsumerWidget {
     return EnvasesSaldoTercerosScreen(
       snapshots: controller.snapshots,
       onRefresh: controller.refresh,
+      onExport: (ctx, bytes, name) => exportListingBytes(ctx, ref, bytes, name),
     );
   }
 }
@@ -725,6 +770,30 @@ final class EnvasesEnviarRoute extends ConsumerStatefulWidget {
 class _EnvasesEnviarRouteState extends ConsumerState<EnvasesEnviarRoute> {
   bool _requestedRefresh = false;
 
+  /// 🔴 Causa raíz medida en 90a37dc: `unawaited(sedes.refresh())` y
+  /// `unawaited(productos.refresh())` tiraban su error al piso — sin
+  /// conexión, `readerFactory()` lanza `StateError` SÍNCRONO antes de que
+  /// `unawaited` llegue a envolver nada, así que ni siquiera queda un
+  /// `Future` rechazado que capturar. `EnvasesEnviarForm` se quedaba
+  /// esperando datos que nunca llegan: `envases-enviar-loading` para
+  /// siempre. Ahora el error se guarda y el formulario ni se monta —se
+  /// muestra el error con "Reintentar" en su lugar— porque
+  /// `EnvasesEnviarForm` no tiene ningún parámetro para recibir un error de
+  /// catálogo (no se le añadió uno: ver el informe de este cambio).
+  Object? _refreshError;
+
+  Future<void> _refreshCatalogs(
+    _EnvasesSedesController sedes,
+    _EnvasesProductosController productos,
+  ) async {
+    try {
+      await sedes.refresh();
+      await productos.refresh();
+    } catch (error) {
+      if (mounted) setState(() => _refreshError = error);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final sedes = ref.watch(envasesSedesControllerProvider);
@@ -736,12 +805,21 @@ class _EnvasesEnviarRouteState extends ConsumerState<EnvasesEnviarRoute> {
         detail: 'No tienes permiso para enviar envases.',
       );
     }
+    if (_refreshError != null) {
+      return OrbiErrorState(
+        key: const Key('envases-enviar-catalog-error'),
+        message:
+            'No se pudieron cargar las sedes o los envases: $_refreshError. '
+            'Reintenta.',
+        onRetry: () => setState(() {
+          _refreshError = null;
+          _requestedRefresh = false;
+        }),
+      );
+    }
     if (!_requestedRefresh) {
       _requestedRefresh = true;
-      scheduleMicrotask(() {
-        unawaited(sedes.refresh());
-        unawaited(productos.refresh());
-      });
+      scheduleMicrotask(() => _refreshCatalogs(sedes, productos));
     }
     return StreamBuilder<EnvasesSedesSnapshot?>(
       stream: sedes.snapshots,
